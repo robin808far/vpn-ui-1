@@ -26,7 +26,7 @@ jobs:
       - name: Check Go formatting
         shell: bash
         run: |
-          files="$(gofmt -l web/service/coreversionmanager.go web/service/coreversionmanager_test.go web/controller/core.go)"
+          files="$(gofmt -l web/service/coreversionmanager.go web/service/coreversionmanager_test.go web/service/amneziawg_dkms.go web/service/awg_support_test.go web/controller/core.go corebundle/corebundle.go corebundle/corebundle_test.go awgsrc/awgsrc.go)"
           if [[ -n "$files" ]]; then
             echo "The following Go files need gofmt:"
             echo "$files"
@@ -36,22 +36,14 @@ jobs:
       - name: Run Core Version Manager integrity and backup tests
         run: >
           go test ./web/service
-          -run '^(TestParseCoreVersionDigest|TestValidateAWGToolsAssetURL|TestVerifySidecar|TestExtractAWGToolsPayload|TestAWGToolsBackup.*|TestCoreVersionSourceRevisionHelpers|TestParseAWGKernelVersionHeader|TestSourceCommitURLRejectsUnknownRepositories)
+          -run '^(TestParseCoreVersionDigest|TestValidateAWGToolsAssetURL|TestVerifySidecar|TestExtractAWGToolsPayload|TestAWGToolsBackup.*|TestAWGToolsRestore.*|TestCoreVersionSourceRevisionHelpers|TestParseAWGKernelVersionHeader|TestSourceCommitURLRejectsUnknownRepositories|TestRunningKernelVersionParsing|TestAwgUnsupportedOnKernel70Plus|TestAwgSupportedDistrosNamed|TestKernelVersionAtLeast)$'
           -count=1
 
       - name: Compile controller package
         run: go test ./web/controller -run '^$' -count=1
 
-      - name: Validate templates and translations
-        run: >
-          go test ./web
-          -run '^(TestAllTemplatesParseAndProtocolFormsDefined|TestEditedTemplatesParse|TestTranslationsAreValidToml|TestTranslationKeyParity)$'
-          -count=1
-
-          -count=1
-
-      - name: Compile controller package
-        run: go test ./web/controller -run '^$' -count=1
+      - name: Validate Xray bundle provenance helper
+        run: go test ./corebundle -run '^TestXraySourceCommit$' -count=1
 
       - name: Validate templates and translations
         run: >
