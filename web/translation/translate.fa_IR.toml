@@ -123,6 +123,7 @@
 "configOverridden" = "بازنویسی‌شده"
 "versionManagerTitle" = "مدیریت نسخه هسته‌ها"
 "versionManagerSubtitle" = "دریافت نسخه رسمی، بررسی صحت فایل، پشتیبان‌گیری و بازگشت"
+"versionManagerBundleNote" = "سایر سرویس‌های VPN همراه باینری پنل بسته‌بندی می‌شوند و از طریق Build جدید پنل به‌روزرسانی خواهند شد. تغییر ماژول کرنل AmneziaWG به بررسی جداگانه سازگاری کرنل نیاز دارد و از این صفحه نصب نمی‌شود."
 "versionManagerRefresh" = "بررسی نسخه‌ها"
 "versionManagerCurrent" = "نسخه نصب‌شده"
 "versionManagerLatest" = "آخرین نسخه رسمی"
