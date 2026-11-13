@@ -121,8 +121,26 @@
 "configNoTargets" = "این هسته هنوز ورودی‌ای ندارد. ابتدا یک ورودی برایش اضافه کنید، سپس برای ویرایش پیکربندی آن بازگردید."
 "configHealthBad" = "هسته با این پیکربندی بالا نیامد."
 "configOverridden" = "بازنویسی‌شده"
+"versionManagerTitle" = "مدیریت نسخه هسته‌ها"
+"versionManagerSubtitle" = "دریافت نسخه رسمی، بررسی صحت فایل، پشتیبان‌گیری و بازگشت"
+"versionManagerRefresh" = "بررسی نسخه‌ها"
+"versionManagerCurrent" = "نسخه نصب‌شده"
+"versionManagerLatest" = "آخرین نسخه رسمی"
+"versionManagerPublished" = "تاریخ انتشار"
+"versionManagerIntegrity" = "روش اعتبارسنجی"
+"versionManagerAvailable" = "به‌روزرسانی موجود است"
+"versionManagerManaged" = "مدیریت از طریق Build / DKMS"
+"versionManagerUpdate" = "نصب به‌روزرسانی"
+"versionManagerConfirmUpdate" = "نسخه #version# ابزارهای AmneziaWG نصب شود؟ پیش از تغییر، از فایل‌های فعلی awg و awg-quick نسخه پشتیبان تهیه می‌شود."
+"versionManagerOfficialRelease" = "مشاهده انتشار رسمی"
+"versionManagerNoData" = "اطلاعات انتشار هنوز در دسترس نیست."
+"versionManagerBackups" = "نسخه‌های پشتیبان ابزارهای AmneziaWG"
+"versionManagerNoBackups" = "هنوز نسخه پشتیبانی ساخته نشده است."
+"versionManagerRollback" = "بازگشت به نسخه پشتیبان"
+"versionManagerConfirmRollback" = "این نسخه پشتیبان بازیابی شود؟ پیش از بازیابی، از فایل‌های فعلی نیز نسخه ایمنی تهیه می‌شود."
 
 [pages.core.toasts]
+"versionManagerError" = "عملیات مدیریت نسخه هسته انجام نشد."
 "configSaved" = "پیکربندی ذخیره شد"
 
 [pages.login]
