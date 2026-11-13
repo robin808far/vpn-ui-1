@@ -33,6 +33,97 @@
             </a-card>
           </a-col>
 
+          <!-- Official core version manager: only publisher-verifiable artifacts
+               expose an installation action. Xray and the kernel module are
+               intentionally build/DKMS managed, not loose-file updates. -->
+          <a-col :span="24">
+            <a-card hoverable>
+              <a-row type="flex" justify="space-between" align="middle" :gutter="[8,8]">
+                <a-col>
+                  <h3 :style="{ margin: 0 }">{{ i18n "pages.core.versionManagerTitle" }}</h3>
+                  <span :style="{ opacity: 0.65 }">{{ i18n "pages.core.versionManagerSubtitle" }}</span>
+                </a-col>
+                <a-col>
+                  <a-button size="small" :loading="versionManagerLoading" @click="loadVersionManager(true)">
+                    <a-icon type="reload"></a-icon>{{ i18n "pages.core.versionManagerRefresh" }}
+                  </a-button>
+                </a-col>
+              </a-row>
+              <a-spin :spinning="versionManagerLoading && !versionManager.components.length">
+                <div v-if="versionManager.components.length" class="version-manager-list">
+                  <div v-for="component in versionManager.components" :key="component.id"
+                    class="version-manager-item">
+                    <div class="version-manager-main">
+                      <div>
+                        <strong>[[ component.name ]]</strong>
+                        <div class="version-manager-meta">
+                          {{ i18n "pages.core.versionManagerCurrent" }}: <code>[[ component.currentVersion || '—' ]]</code>
+                          <span v-if="component.latestVersion">
+                            · {{ i18n "pages.core.versionManagerLatest" }}:
+                            <code>[[ component.latestVersion ]]</code>
+                          </span>
+                        </div>
+                        <div class="version-manager-meta" v-if="component.publishedAt">
+                          {{ i18n "pages.core.versionManagerPublished" }}: [[ new Date(component.publishedAt).toLocaleString() ]]
+                        </div>
+                        <div class="version-manager-meta" v-if="component.integrity">
+                          {{ i18n "pages.core.versionManagerIntegrity" }}: [[ component.integrity ]]
+                        </div>
+                      </div>
+                      <div class="version-manager-actions">
+                        <a-tag color="green" v-if="component.updateAvailable && component.canUpdate">
+                          {{ i18n "pages.core.versionManagerAvailable" }}
+                        </a-tag>
+                        <a-tag color="blue" v-else-if="!component.canUpdate">
+                          {{ i18n "pages.core.versionManagerManaged" }}
+                        </a-tag>
+                        <a-popconfirm v-if="component.id === 'awg-tools' && component.canUpdate"
+                          :title="'{{ i18n "pages.core.versionManagerConfirmUpdate" }}'.replace('#version#', component.latestVersion)"
+                          @confirm="updateAWGTools" ok-text="{{ i18n "pages.core.versionManagerUpdate" }}"
+                          cancel-text="{{ i18n "cancel" }}">
+                          <a-button type="primary" size="small" :loading="versionManagerBusy === 'update'">
+                            <a-icon type="download"></a-icon>{{ i18n "pages.core.versionManagerUpdate" }}
+                          </a-button>
+                        </a-popconfirm>
+                      </div>
+                    </div>
+                    <a-alert v-if="component.updateReason" type="info" show-icon
+                      :message="component.updateReason" :style="{ marginTop: '10px' }"></a-alert>
+                    <div v-if="component.releaseUrl" class="version-manager-meta">
+                      <a :href="component.releaseUrl" target="_blank" rel="noopener noreferrer">
+                        {{ i18n "pages.core.versionManagerOfficialRelease" }}
+                      </a>
+                    </div>
+                  </div>
+                </div>
+                <a-empty v-else-if="!versionManagerLoading" :description="'{{ i18n "pages.core.versionManagerNoData" }}'"></a-empty>
+              </a-spin>
+              <a-divider></a-divider>
+              <div class="version-manager-backups">
+                <strong>{{ i18n "pages.core.versionManagerBackups" }}</strong>
+                <div v-if="versionManager.backups.length">
+                  <div v-for="backup in versionManager.backups" :key="backup.id" class="version-manager-backup">
+                    <span>
+                      <code>[[ backup.id ]]</code>
+                      <span class="version-manager-meta">
+                        [[ backup.fromVersion || '—' ]] → [[ backup.toVersion || '—' ]]
+                        · [[ new Date(backup.createdAt).toLocaleString() ]]
+                      </span>
+                    </span>
+                    <a-popconfirm :title="'{{ i18n "pages.core.versionManagerConfirmRollback" }}'"
+                      @confirm="rollbackAWGTools(backup.id)" ok-text="{{ i18n "pages.core.versionManagerRollback" }}"
+                      cancel-text="{{ i18n "cancel" }}">
+                      <a-button size="small" :loading="versionManagerBusy === backup.id">
+                        <a-icon type="rollback"></a-icon>{{ i18n "pages.core.versionManagerRollback" }}
+                      </a-button>
+                    </a-popconfirm>
+                  </div>
+                </div>
+                <a-empty v-else :description="'{{ i18n "pages.core.versionManagerNoBackups" }}'"></a-empty>
+              </div>
+            </a-card>
+          </a-col>
+
           <!-- Reboot-required banner: persists on the page after the setup modal
                is closed, so the operator can't miss it. -->
           <a-col :span="24" v-if="loaded && rebootRequired">
@@ -610,6 +701,9 @@
       missingProtocols: [],
       cores: [],
       system: { modules: [] },
+      versionManager: { components: [], backups: [] },
+      versionManagerLoading: false,
+      versionManagerBusy: '',
       provisionRunning: false,
       provisionDone: false,
       provisionVisible: false,
@@ -661,6 +755,30 @@
       cfgCm: null,
     },
     methods: {
+      async loadVersionManager(showSpin) {
+        if (showSpin) this.versionManagerLoading = true;
+        const msg = await HttpUtil.get('/panel/core/version-manager');
+        if (msg && msg.success && msg.obj) this.versionManager = msg.obj;
+        this.versionManagerLoading = false;
+      },
+      async updateAWGTools() {
+        this.versionManagerBusy = 'update';
+        const msg = await HttpUtil.post('/panel/core/version-manager/awg-tools/update');
+        this.versionManagerBusy = '';
+        if (msg && msg.success) {
+          await this.loadVersionManager(false);
+          await this.loadStatus(false);
+        }
+      },
+      async rollbackAWGTools(backupID) {
+        this.versionManagerBusy = backupID;
+        const msg = await HttpUtil.post('/panel/core/version-manager/awg-tools/rollback/' + encodeURIComponent(backupID));
+        this.versionManagerBusy = '';
+        if (msg && msg.success) {
+          await this.loadVersionManager(false);
+          await this.loadStatus(false);
+        }
+      },
       async loadStatus(showSpin) {
         if (showSpin) this.spinning = true;
         const msg = await HttpUtil.get('/panel/core/status');
@@ -1287,6 +1405,7 @@
     mounted() {
       this.loadStatus(true);
       this.loadCatalog();
+      this.loadVersionManager(false);
       this.pollTimer = setInterval(() => this.loadStatus(false), 5000);
     },
     beforeDestroy() {
