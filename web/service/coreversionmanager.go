@@ -137,6 +137,13 @@ func (s *CoreVersionManagerService) installPath() string {
 	if s.installDir != "" {
 		return s.installDir
 	}
+	// Update the same directory that currently provides awg, so the panel does
+	// not install a shadow copy while continuing to execute the distro binary.
+	for _, name := range []string{"awg", "awg-quick"} {
+		if current, err := exec.LookPath(name); err == nil {
+			return filepath.Dir(current)
+		}
+	}
 	return "/usr/local/bin"
 }
 
@@ -181,7 +188,7 @@ func (s *CoreVersionManagerService) GetInfo() CoreVersionManagerInfo {
 	info.Components = append(info.Components, CoreVersionComponent{
 		ID:              "xray",
 		Name:            "Xray-core (patched, embedded)",
-		CurrentVersion:  firstNonEmpty(xray.Version, "unknown"),
+		CurrentVersion:  firstNonEmptyCoreVersion(xray.Version, "unknown"),
 		SourceRepo:      "Sir-MmD/Xray-core",
 		SourceURL:       "https://github.com/Sir-MmD/Xray-core",
 		UpdateAvailable: false,
@@ -306,10 +313,6 @@ func selectAWGToolsAsset(assets []coreVersionAsset) (coreVersionAsset, error) {
 		if a.Name == coreVersionAWGToolsAsset {
 			if a.Size <= 0 || a.Size > coreVersionMaxAssetBytes {
 				return coreVersionAsset{}, fmt.Errorf("the official AWG Tools package has an unexpected size")
-			}
-			if err := validateAWGToolsAssetURL(a.BrowserDownloadURL, a.Name, "v"+strings.TrimPrefix(strings.TrimSpace(a.Name), "v")); err == nil {
-				// Validate the repository/path separately below using the tag from
-				// the release response; the generic selector checks only asset shape.
 			}
 			return a, nil
 		}
@@ -607,7 +610,7 @@ func (s *CoreVersionManagerService) installAWGToolsPayload(payload awgToolsPaylo
 	s.pruneBackups()
 	return &CoreVersionUpdateResult{
 		Component:   "awg-tools",
-		FromVersion: firstNonEmpty(fromVersion, "not installed"),
+		FromVersion: firstNonEmptyCoreVersion(fromVersion, "not installed"),
 		ToVersion:   toVersion,
 		BackupID:    backup.ID,
 		UpdatedAt:   time.Now().UTC(),
@@ -741,7 +744,8 @@ func (s *CoreVersionManagerService) RollbackAWGTools(backupID string) (*CoreVers
 	if manifest.ID != backupID || manifest.Component != "awg-tools" {
 		return nil, fmt.Errorf("backup does not belong to AmneziaWG Tools")
 	}
-	safety, err := s.createAWGToolsBackup(currentAWGToolsVersion(), "rollback-safety")
+	fromVersion := currentAWGToolsVersion()
+	safety, err := s.createAWGToolsBackup(fromVersion, "rollback-safety")
 	if err != nil {
 		return nil, fmt.Errorf("could not snapshot the current files before rollback: %w", err)
 	}
@@ -759,7 +763,7 @@ func (s *CoreVersionManagerService) RollbackAWGTools(backupID string) (*CoreVers
 	s.pruneBackups()
 	return &CoreVersionUpdateResult{
 		Component:   "awg-tools",
-		FromVersion: currentAWGToolsVersion(),
+		FromVersion: firstNonEmptyCoreVersion(fromVersion, "unknown"),
 		ToVersion:   manifest.FromVersion,
 		BackupID:    safety.ID,
 		UpdatedAt:   time.Now().UTC(),
@@ -858,7 +862,7 @@ func writeCoreVersionAtomically(dest string, data []byte, mode os.FileMode) erro
 	return nil
 }
 
-func firstNonEmpty(values ...string) string {
+func firstNonEmptyCoreVersion(values ...string) string {
 	for _, value := range values {
 		if strings.TrimSpace(value) != "" {
 			return value
