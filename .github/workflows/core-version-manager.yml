@@ -7,7 +7,7 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   verify:
@@ -23,12 +23,26 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Check Go formatting
+      - name: Format Go sources
+        run: gofmt -w web/service/coreversionmanager.go web/service/coreversionmanager_test.go web/controller/core.go
+
+      - name: Commit gofmt changes
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add web/service/coreversionmanager.go web/service/coreversionmanager_test.go web/controller/core.go
+            git commit -m "style(core): format version manager Go sources"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+
+      - name: Verify Go formatting
         shell: bash
         run: |
           files="$(gofmt -l web/service/coreversionmanager.go web/service/coreversionmanager_test.go web/controller/core.go)"
           if [[ -n "$files" ]]; then
-            echo "The following Go files need gofmt:"
             echo "$files"
             exit 1
           fi
