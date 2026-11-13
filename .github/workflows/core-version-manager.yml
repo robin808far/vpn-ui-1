@@ -26,7 +26,7 @@ jobs:
       - name: Check Go formatting
         shell: bash
         run: |
-          files="$(gofmt -l web/service/coreversionmanager.go web/service/coreversionmanager_test.go web/service/amneziawg_dkms.go web/service/awg_support_test.go web/controller/core.go corebundle/corebundle.go corebundle/corebundle_test.go awgsrc/awgsrc.go)"
+          files="$(gofmt -l web/service/coreversionmanager.go web/service/coreversionmanager_test.go web/service/amneziawg_dkms.go web/service/awg_support_test.go web/controller/core.go corebundle/corebundle.go corebundle/corebundle_test.go awgsrc/awgsrc.go awgsrc/awgsrc_test.go)"
           if [[ -n "$files" ]]; then
             echo "The following Go files need gofmt:"
             echo "$files"
@@ -42,8 +42,17 @@ jobs:
       - name: Compile controller package
         run: go test ./web/controller -run '^$' -count=1
 
-      - name: Validate Xray bundle provenance helper
-        run: go test ./corebundle -run '^TestXraySourceCommit$' -count=1
+      - name: Validate Xray and AmneziaWG source provenance
+        run: |
+          go test ./corebundle -run '^TestXraySourceCommit
+
+      - name: Validate templates and translations
+        run: >
+          go test ./web
+          -run '^(TestAllTemplatesParseAndProtocolFormsDefined|TestEditedTemplatesParse|TestTranslationsAreValidToml|TestTranslationKeyParity)$'
+          -count=1
+ -count=1
+          go test ./awgsrc -count=1
 
       - name: Validate templates and translations
         run: >
