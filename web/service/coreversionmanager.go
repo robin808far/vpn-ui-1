@@ -55,63 +55,7 @@ var coreVersionIDPattern = regexp.MustCompile(`^[A-Za-z0-9._-]{1,80}$`)
 var coreVersionHexPattern = regexp.MustCompile(`^[a-fA-F0-9]{64}$`)
 var awgToolsVersionPattern = regexp.MustCompile(`(?i)amneziawg-tools\s+v?([0-9][A-Za-z0-9.+_-]*)`)
 var glibcVersionPattern = regexp.MustCompile(`(?i)^glibc\s+(\d+)\.(\d+)`)
-var awgKernelVersionPattern = regexp.MustCompile(`(?m)^#define\s+WIREGUARD_VERSION\s+"([^"]+)"\s*package service
-
-import (
-	"archive/zip"
-	"bytes"
-	"crypto/sha256"
-	"debug/elf"
-	"encoding/hex"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
-	"net/http"
-	"net/url"
-	"os"
-	"os/exec"
-	"path"
-	"path/filepath"
-	"regexp"
-	"runtime"
-	"sort"
-	"strconv"
-	"strings"
-	"sync"
-	"time"
-
-	"github.com/mhsanaei/3x-ui/v2/awgsrc"
-	"github.com/mhsanaei/3x-ui/v2/corebundle"
-	"github.com/mhsanaei/3x-ui/v2/xray"
-)
-
-// Core Version Manager deliberately supports only components with a fixed,
-// allowlisted upstream and publisher-provided SHA-256 metadata. Xray is embedded
-// in the panel binary and the AmneziaWG kernel module is vendored/DKMS-built;
-// neither can be safely replaced as a loose file by this manager.
-const (
-	coreVersionAWGToolsRepo       = "amnezia-vpn/amneziawg-tools"
-	coreVersionXrayRepo           = "Sir-MmD/Xray-core"
-	coreVersionXrayBranch         = "main"
-	coreVersionAWGKernelRepo      = "amnezia-vpn/amneziawg-linux-kernel-module"
-	coreVersionAWGKernelBranch    = "master"
-	coreVersionAWGToolsAPI        = "https://api.github.com/repos/" + coreVersionAWGToolsRepo + "/releases/latest"
-	coreVersionAWGToolsAsset      = "ubuntu-22.04-amneziawg-tools.zip"
-	coreVersionAWGToolsArchiveDir = "ubuntu-22.04-amneziawg-tools"
-	coreVersionBackupRoot         = "/var/lib/vpn-ui/core-version-backups"
-	coreVersionMaxAPIBytes        = 1 << 20
-	coreVersionMaxAssetBytes      = 8 << 20
-	coreVersionMaxFileBytes       = 2 << 20
-	coreVersionBackupRetention    = 10
-)
-
-var coreVersionUpdateMu sync.Mutex
-
-var coreVersionIDPattern = regexp.MustCompile(`^[A-Za-z0-9._-]{1,80}$`)
-var coreVersionHexPattern = regexp.MustCompile(`^[a-fA-F0-9]{64}$`)
-var awgToolsVersionPattern = regexp.MustCompile(`(?i)amneziawg-tools\s+v?([0-9][A-Za-z0-9.+_-]*)`)
-)
+var awgKernelVersionPattern = regexp.MustCompile(`(?m)^#define\s+WIREGUARD_VERSION\s+"([^"]+)"\s*$`)
 
 // CoreVersionManagerService resolves releases only from the fixed official
 // registry above. installDir and backupRoot are overrideable in tests; a
