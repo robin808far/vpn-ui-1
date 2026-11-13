@@ -2263,5 +2263,55 @@
   .core-page~div .cfg-foot-gap {
     flex: 1 1 auto;
   }
+
+  .core-page~div .version-manager-list {
+    margin-top: 14px;
+  }
+
+  .core-page~div .version-manager-item {
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border, rgba(128, 128, 128, 0.2));
+  }
+
+  .core-page~div .version-manager-item:last-child {
+    border-bottom: 0;
+  }
+
+  .core-page~div .version-manager-main,
+  .core-page~div .version-manager-backup {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  .core-page~div .version-manager-meta {
+    margin-top: 4px;
+    font-size: 12px;
+    opacity: 0.72;
+    overflow-wrap: anywhere;
+  }
+
+  .core-page~div .version-manager-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .core-page~div .version-manager-backup {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border, rgba(128, 128, 128, 0.15));
+  }
+
+  .core-page~div .version-manager-backup:last-child {
+    border-bottom: 0;
+  }
+
+  .core-page~div .version-manager-backups {
+    margin-top: 12px;
+  }
+
 </style>
 {{ template "page/body_end" .}}
