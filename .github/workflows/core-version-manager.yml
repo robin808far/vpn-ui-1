@@ -33,29 +33,18 @@ jobs:
             exit 1
           fi
 
-      - name: Run Core Version Manager integrity and backup tests
-        run: >
-          go test ./web/service
-          -run '^(TestParseCoreVersionDigest|TestValidateAWGToolsAssetURL|TestVerifySidecar|TestExtractAWGToolsPayload|TestAWGToolsBackup.*|TestAWGToolsRestore.*|TestCoreVersionSourceRevisionHelpers|TestParseAWGKernelVersionHeader|TestSourceCommitURLRejectsUnknownRepositories|TestRunningKernelVersionParsing|TestAwgUnsupportedOnKernel70Plus|TestAwgSupportedDistrosNamed|TestKernelVersionAtLeast)$'
-          -count=1
+      - name: Run Core Version Manager and kernel compatibility tests
+        run: |
+          go test ./web/service -run '^(TestParseCoreVersionDigest|TestValidateAWGToolsAssetURL|TestVerifySidecar|TestExtractAWGToolsPayload|TestAWGToolsBackup.*|TestAWGToolsRestore.*|TestCoreVersionSourceRevisionHelpers|TestParseAWGKernelVersionHeader|TestSourceCommitURLRejectsUnknownRepositories|TestRunningKernelVersionParsing|TestAwgUnsupportedOnKernel70Plus|TestAwgSupportedDistrosNamed|TestKernelVersionAtLeast)$' -count=1
 
       - name: Compile controller package
         run: go test ./web/controller -run '^$' -count=1
 
-      - name: Validate Xray and AmneziaWG source provenance
+      - name: Validate embedded Xray and vendored AmneziaWG provenance
         run: |
-          go test ./corebundle -run '^TestXraySourceCommit
-
-      - name: Validate templates and translations
-        run: >
-          go test ./web
-          -run '^(TestAllTemplatesParseAndProtocolFormsDefined|TestEditedTemplatesParse|TestTranslationsAreValidToml|TestTranslationKeyParity)$'
-          -count=1
- -count=1
+          go test ./corebundle -run '^TestXraySourceCommit$' -count=1
           go test ./awgsrc -count=1
 
       - name: Validate templates and translations
-        run: >
-          go test ./web
-          -run '^(TestAllTemplatesParseAndProtocolFormsDefined|TestEditedTemplatesParse|TestTranslationsAreValidToml|TestTranslationKeyParity)$'
-          -count=1
+        run: |
+          go test ./web -run '^(TestAllTemplatesParseAndProtocolFormsDefined|TestEditedTemplatesParse|TestTranslationsAreValidToml|TestTranslationKeyParity)$' -count=1
