@@ -278,7 +278,7 @@ func TestAWGToolsRestoreRejectsDuplicateManifestEntries(t *testing.T) {
 		t.Fatal(err)
 	}
 	duplicate := *backup
-	duplicate.Files = append(append([]coreVersionBackupFile(nil), backup.Files...), backup.Files[0])
+	duplicate.Files = []coreVersionBackupFile{backup.Files[0], backup.Files[0]}
 	if err := manager.restoreAWGToolsBackup(&duplicate); err == nil {
 		t.Fatal("duplicate backup manifest entry was accepted")
 	}
