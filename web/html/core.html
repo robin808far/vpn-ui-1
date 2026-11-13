@@ -49,6 +49,8 @@
                   </a-button>
                 </a-col>
               </a-row>
+              <a-alert type="info" show-icon :message="'{{ i18n "pages.core.versionManagerBundleNote" }}'"
+                :style="{ marginTop: '14px', marginBottom: '6px' }"></a-alert>
               <a-spin :spinning="versionManagerLoading && !versionManager.components.length">
                 <div v-if="versionManager.components.length" class="version-manager-list">
                   <div v-for="component in versionManager.components" :key="component.id"
