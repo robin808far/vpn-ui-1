@@ -1,0 +1,64 @@
+name: Core Version Manager CI
+
+on:
+  push:
+    branches:
+      - feature/core-version-manager
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    name: Compile, integrity tests and template validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Format Go sources
+        run: gofmt -w web/service/coreversionmanager.go web/service/coreversionmanager_test.go web/service/amneziawg_dkms.go web/service/awg_support_test.go web/controller/core.go corebundle/corebundle.go corebundle/corebundle_test.go awgsrc/awgsrc.go awgsrc/awgsrc_test.go
+
+      - name: Commit gofmt changes
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add web/service/coreversionmanager.go web/service/coreversionmanager_test.go web/service/amneziawg_dkms.go web/service/awg_support_test.go web/controller/core.go corebundle/corebundle.go corebundle/corebundle_test.go awgsrc/awgsrc.go awgsrc/awgsrc_test.go
+            git commit -m "style(core): format source version manager changes"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+
+      - name: Verify Go formatting
+        shell: bash
+        run: |
+          files="$(gofmt -l web/service/coreversionmanager.go web/service/coreversionmanager_test.go web/service/amneziawg_dkms.go web/service/awg_support_test.go web/controller/core.go corebundle/corebundle.go corebundle/corebundle_test.go awgsrc/awgsrc.go awgsrc/awgsrc_test.go)"
+          if [[ -n "$files" ]]; then
+            echo "$files"
+            exit 1
+          fi
+
+      - name: Run Core Version Manager and kernel compatibility tests
+        run: |
+          go test ./web/service -run '^(TestParseCoreVersionDigest|TestValidateAWGToolsAssetURL|TestVerifySidecar|TestExtractAWGToolsPayload|TestAWGToolsBackup.*|TestAWGToolsRestore.*|TestCoreVersionSourceRevisionHelpers|TestParseAWGKernelVersionHeader|TestSourceCommitURLRejectsUnknownRepositories|TestRunningKernelVersionParsing|TestAwgUnsupportedOnKernel70Plus|TestAwgSupportedDistrosNamed|TestKernelVersionAtLeast)$' -count=1
+
+      - name: Compile controller package
+        run: go test ./web/controller -run '^$' -count=1
+
+      - name: Validate embedded Xray and vendored AmneziaWG provenance
+        run: |
+          go test ./corebundle -run '^TestXraySourceCommit$' -count=1
+          go test ./awgsrc -count=1
+
+      - name: Validate templates and translations
+        run: |
+          go test ./web -run '^(TestAllTemplatesParseAndProtocolFormsDefined|TestEditedTemplatesParse|TestTranslationsAreValidToml|TestTranslationKeyParity)$' -count=1

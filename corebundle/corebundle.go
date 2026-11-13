@@ -77,6 +77,27 @@ func XrayBinaryName() string {
 // archXrayPath is the embedded path of the core binary for this architecture.
 func archXrayPath() string { return "core/" + runtime.GOARCH + "/xray" }
 
+// XraySourceCommit returns the commit SHA recorded by build/core/build.sh
+// alongside the embedded Xray binary. An empty string means the panel was built
+// without source provenance metadata, so the version manager cannot compare its
+// Xray pin to upstream safely.
+func XraySourceCommit() string {
+	raw, err := bundleFS.ReadFile("core/" + runtime.GOARCH + "/.xray.commit")
+	if err != nil {
+		return ""
+	}
+	commit := strings.TrimSpace(string(raw))
+	if len(commit) != 40 {
+		return ""
+	}
+	for _, c := range commit {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return ""
+		}
+	}
+	return strings.ToLower(commit)
+}
+
 // HasXray reports whether a core binary is embedded for this architecture.
 func HasXray() bool {
 	f, err := bundleFS.Open(archXrayPath())

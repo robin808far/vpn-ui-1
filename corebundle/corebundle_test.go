@@ -115,3 +115,21 @@ func TestExtractedGeofilesAreDatedByTheirData(t *testing.T) {
 		}
 	}
 }
+
+// TestXraySourceCommit reads the build-time Git pin embedded beside Xray.
+// A plain source checkout may not have run build/core/build.sh, so an empty
+// value is a valid no-provenance state.
+func TestXraySourceCommit(t *testing.T) {
+	commit := XraySourceCommit()
+	if commit == "" {
+		t.Skip("Xray source pin not embedded in this build")
+	}
+	if len(commit) != 40 {
+		t.Fatalf("Xray source commit has invalid length: %q", commit)
+	}
+	for _, ch := range commit {
+		if !((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f')) {
+			t.Fatalf("Xray source commit is not lowercase hexadecimal: %q", commit)
+		}
+	}
+}

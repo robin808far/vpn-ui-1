@@ -350,36 +350,27 @@ func awgKernelsMissingModule() []string {
 	return out
 }
 
-// awgSupportedDistros is what the operator is told to use when their host cannot build the
-// module. Keep in sync with awgKernelModuleSupported and the matrix results below.
-const awgSupportedDistros = "Debian 12, Debian 13, Ubuntu 24.04 or Ubuntu 26.04"
+// awgSupportedDistros is the validated distro/kernel combination for the vendored module.
+const awgSupportedDistros = "Debian 12/13 or Ubuntu 24.04/26.04 with a tested Linux kernel below 7.0"
 
-// awgKernelModuleSupported reports whether the AmneziaWG kernel module can build on this
-// host, and when it cannot, a message naming the reason and the distros that do work.
+// awgKernelModuleSupported reports whether the vendored AmneziaWG source is
+// validated against the running kernel.
 //
-// Verified 2026-07-19 by building on all 13 supported targets. The module built and loaded
-// on the Debian/Ubuntu family only (Debian 12/13, Ubuntu 24.04/26.04). The other nine fail
-// for two UPSTREAM reasons, neither of which is anything the panel can configure around:
+// Upstream master is currently AWG 3.1, but two kernel ABI fixes needed by newer
+// kernels are still open upstream:
+//   - PR #269: setup_udp_tunnel_sock signature change on Linux 7.0.
+//   - PR #184: IPv6 route lookup API change on Linux 7.1.
 //
-//   - Linux 7.1 removed `ipv6_stub` (the net/ipv6_stubs.h header is gone). socket.c still
-//     calls ipv6_stub->ipv6_dst_lookup_flow, and the module's own shim for that symbol is
-//     gated to kernels older than 3.12, so nothing covers the removal. Hits Fedora 43/44
-//     and Arch. Upstream PRs #176, #184 and #185 fix it; none merged as of this writing.
-//   - RHEL-family kernels backport features while keeping an old LINUX_VERSION_CODE, so the
-//     module's version-gated shims (netif_threaded_enable, timer_container_of) collide with
-//     what the kernel already has. EL10 is worse: compat.h only knows RHEL_MAJOR 7, 8 and 9,
-//     so EL10 is not detected at all. Hits Alma/Rocky/CentOS 9 and 10. Upstream PRs #174 and
-//     #183 fix it; also unmerged. Amnezia's own COPR sidesteps this by shipping the much
-//     older v1.0.20241112, which predates the offending shims.
-//
-// The kernel test comes first because it is the real constraint: a Debian or Ubuntu release
-// that ships 7.1 will fail too, and should say so rather than be trusted by family name.
+// PR #176 fixed an earlier ipv6_stub issue but does not cover these later ABI
+// changes. Until the fixes are merged and the module is rebuilt and tested,
+// refuse AmneziaWG on Linux 7.0+. Other VPN protocols are not affected.
 func awgKernelModuleSupported() (bool, string) {
-	if maj, min, ok := runningKernelVersion(); ok && (maj > 7 || (maj == 7 && min >= 1)) {
+	if maj, min, ok := runningKernelVersion(); ok && kernelVersionAtLeast(maj, min, 7, 0) {
 		return false, fmt.Sprintf(
-			"not supported on Linux %d.%d: the AmneziaWG module does not build on kernel 7.1 or newer "+
-				"(the kernel removed ipv6_stub and upstream has not adapted yet). Every other protocol "+
-				"is unaffected. For AmneziaWG use %s.", maj, min, awgSupportedDistros)
+			"not supported on Linux %d.%d: the current AmneziaWG source has an unresolved setup_udp_tunnel_sock "+
+				"compatibility issue from Linux 7.0 (upstream PR #269); Linux 7.1 also needs the IPv6 route lookup fix "+
+				"(upstream PR #184). Use a tested kernel below 7.0. Every other VPN protocol is unaffected.",
+			maj, min)
 	}
 
 	id := strings.ToLower(strings.TrimSpace(osReleaseField("ID")))
@@ -390,9 +381,8 @@ func awgKernelModuleSupported() (bool, string) {
 		return true, ""
 	case isEnterpriseLinux() || id == "fedora" || strings.Contains(like, "fedora"):
 		return false, fmt.Sprintf(
-			"not supported on %s: the AmneziaWG module fails to build against RHEL-family and Fedora "+
-				"kernels (their backported kernels break the module's compatibility layer upstream). "+
-				"Every other protocol is unaffected. For AmneziaWG use %s.",
+			"not supported on %s: the vendored AmneziaWG source has unresolved kernel compatibility issues. "+
+				"Every other VPN protocol is unaffected. For AmneziaWG use %s.",
 			distroPretty(), awgSupportedDistros)
 	default:
 		return false, fmt.Sprintf(
@@ -402,7 +392,11 @@ func awgKernelModuleSupported() (bool, string) {
 	}
 }
 
-// runningKernelVersion is parseKernelVersion applied to the running kernel.
+// kernelVersionAtLeast compares a parsed major/minor pair without relying on distro names.
+func kernelVersionAtLeast(major, minor, requiredMajor, requiredMinor int) bool {
+	return major > requiredMajor || (major == requiredMajor && minor >= requiredMinor)
+}
+
 func runningKernelVersion() (int, int, bool) { return parseKernelVersion(runningKernel()) }
 
 // parseKernelVersion pulls the major and minor out of a `uname -r` string. It has to cope

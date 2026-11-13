@@ -12,7 +12,8 @@ import (
 // CoreController exposes status and control for the backend "cores"
 // (Xray, L2TP/IPsec, PPTP, OpenVPN, RADIUS) shown in the Core Settings panel.
 type CoreController struct {
-	coreService service.CoreService
+	coreService        service.CoreService
+	coreVersionService service.CoreVersionManagerService
 }
 
 // NewCoreController creates a new CoreController and initializes its routes.
@@ -27,6 +28,9 @@ func (a *CoreController) initRouter(g *gin.RouterGroup) {
 	g = g.Group("/core")
 	g.Use(requirePerm(model.PermCoreSettings))
 	g.GET("/status", a.status)
+	g.GET("/version-manager", a.versionManagerInfo)
+	g.POST("/version-manager/awg-tools/update", requireSuperAdmin(), a.updateAWGTools)
+	g.POST("/version-manager/awg-tools/rollback/:backup", requireSuperAdmin(), a.rollbackAWGTools)
 	g.GET("/catalog", a.catalog)
 	g.POST("/provision", a.provision)
 	g.GET("/provision-status", a.provisionStatus)
@@ -253,4 +257,32 @@ func (a *CoreController) saveCoreConfig(c *gin.Context) {
 		// actually produced rather than against what it had before the save.
 		"targets": a.coreService.CoreConfigTargets(core),
 	}, nil)
+}
+
+// versionManagerInfo returns trusted core release metadata and local rollback points.
+func (a *CoreController) versionManagerInfo(c *gin.Context) {
+	jsonObj(c, a.coreVersionService.GetInfo(), nil)
+}
+
+// updateAWGTools installs only the allowlisted official AWG Tools package after
+// verifying both GitHub's release digest and the checksums shipped inside it.
+// This changes the userspace tools, not the live kernel module or VPN interfaces.
+func (a *CoreController) updateAWGTools(c *gin.Context) {
+	result, err := a.coreVersionService.InstallLatestAWGTools()
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "pages.core.toasts.versionManagerError"), err)
+		return
+	}
+	jsonObj(c, result, nil)
+}
+
+// rollbackAWGTools restores a previously verified snapshot. The service takes
+// a second safety snapshot before touching the current binaries.
+func (a *CoreController) rollbackAWGTools(c *gin.Context) {
+	result, err := a.coreVersionService.RollbackAWGTools(c.Param("backup"))
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "pages.core.toasts.versionManagerError"), err)
+		return
+	}
+	jsonObj(c, result, nil)
 }
