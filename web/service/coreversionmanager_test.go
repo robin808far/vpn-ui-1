@@ -245,3 +245,41 @@ func TestAWGToolsBackupRejectsCorruptedSnapshot(t *testing.T) {
 		t.Fatal("corrupted backup file was accepted")
 	}
 }
+
+
+func TestAWGToolsRestoreRejectsIncompleteManifest(t *testing.T) {
+	installDir := t.TempDir()
+	backupDir := t.TempDir()
+	manager := &CoreVersionManagerService{installDir: installDir, backupRoot: backupDir}
+	if err := os.WriteFile(filepath.Join(installDir, "awg"), []byte("current"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	backup, err := manager.createAWGToolsBackup("3.0.0", "3.1.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	incomplete := *backup
+	incomplete.Files = append([]coreVersionBackupFile(nil), backup.Files[:1]...)
+	if err := manager.restoreAWGToolsBackup(&incomplete); err == nil {
+		t.Fatal("incomplete backup manifest was accepted")
+	}
+	current, err := os.ReadFile(filepath.Join(installDir, "awg"))
+	if err != nil || string(current) != "current" {
+		t.Fatalf("restore changed files before rejecting the manifest: %q, %v", current, err)
+	}
+}
+
+func TestAWGToolsRestoreRejectsDuplicateManifestEntries(t *testing.T) {
+	installDir := t.TempDir()
+	backupDir := t.TempDir()
+	manager := &CoreVersionManagerService{installDir: installDir, backupRoot: backupDir}
+	backup, err := manager.createAWGToolsBackup("", "3.1.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	duplicate := *backup
+	duplicate.Files = append(append([]coreVersionBackupFile(nil), backup.Files...), backup.Files[0])
+	if err := manager.restoreAWGToolsBackup(&duplicate); err == nil {
+		t.Fatal("duplicate backup manifest entry was accepted")
+	}
+}
