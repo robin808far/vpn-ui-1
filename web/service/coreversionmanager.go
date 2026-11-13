@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/mhsanaei/3x-ui/v2/awgsrc"
+	"github.com/mhsanaei/3x-ui/v2/corebundle"
 	"github.com/mhsanaei/3x-ui/v2/xray"
 )
 
@@ -34,6 +35,10 @@ import (
 // neither can be safely replaced as a loose file by this manager.
 const (
 	coreVersionAWGToolsRepo       = "amnezia-vpn/amneziawg-tools"
+	coreVersionXrayRepo           = "Sir-MmD/Xray-core"
+	coreVersionXrayBranch         = "main"
+	coreVersionAWGKernelRepo      = "amnezia-vpn/amneziawg-linux-kernel-module"
+	coreVersionAWGKernelBranch    = "master"
 	coreVersionAWGToolsAPI        = "https://api.github.com/repos/" + coreVersionAWGToolsRepo + "/releases/latest"
 	coreVersionAWGToolsAsset      = "ubuntu-22.04-amneziawg-tools.zip"
 	coreVersionAWGToolsArchiveDir = "ubuntu-22.04-amneziawg-tools"
@@ -50,6 +55,63 @@ var coreVersionIDPattern = regexp.MustCompile(`^[A-Za-z0-9._-]{1,80}$`)
 var coreVersionHexPattern = regexp.MustCompile(`^[a-fA-F0-9]{64}$`)
 var awgToolsVersionPattern = regexp.MustCompile(`(?i)amneziawg-tools\s+v?([0-9][A-Za-z0-9.+_-]*)`)
 var glibcVersionPattern = regexp.MustCompile(`(?i)^glibc\s+(\d+)\.(\d+)`)
+var awgKernelVersionPattern = regexp.MustCompile(`(?m)^#define\s+WIREGUARD_VERSION\s+"([^"]+)"\s*package service
+
+import (
+	"archive/zip"
+	"bytes"
+	"crypto/sha256"
+	"debug/elf"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+	"os/exec"
+	"path"
+	"path/filepath"
+	"regexp"
+	"runtime"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/mhsanaei/3x-ui/v2/awgsrc"
+	"github.com/mhsanaei/3x-ui/v2/corebundle"
+	"github.com/mhsanaei/3x-ui/v2/xray"
+)
+
+// Core Version Manager deliberately supports only components with a fixed,
+// allowlisted upstream and publisher-provided SHA-256 metadata. Xray is embedded
+// in the panel binary and the AmneziaWG kernel module is vendored/DKMS-built;
+// neither can be safely replaced as a loose file by this manager.
+const (
+	coreVersionAWGToolsRepo       = "amnezia-vpn/amneziawg-tools"
+	coreVersionXrayRepo           = "Sir-MmD/Xray-core"
+	coreVersionXrayBranch         = "main"
+	coreVersionAWGKernelRepo      = "amnezia-vpn/amneziawg-linux-kernel-module"
+	coreVersionAWGKernelBranch    = "master"
+	coreVersionAWGToolsAPI        = "https://api.github.com/repos/" + coreVersionAWGToolsRepo + "/releases/latest"
+	coreVersionAWGToolsAsset      = "ubuntu-22.04-amneziawg-tools.zip"
+	coreVersionAWGToolsArchiveDir = "ubuntu-22.04-amneziawg-tools"
+	coreVersionBackupRoot         = "/var/lib/vpn-ui/core-version-backups"
+	coreVersionMaxAPIBytes        = 1 << 20
+	coreVersionMaxAssetBytes      = 8 << 20
+	coreVersionMaxFileBytes       = 2 << 20
+	coreVersionBackupRetention    = 10
+)
+
+var coreVersionUpdateMu sync.Mutex
+
+var coreVersionIDPattern = regexp.MustCompile(`^[A-Za-z0-9._-]{1,80}$`)
+var coreVersionHexPattern = regexp.MustCompile(`^[a-fA-F0-9]{64}$`)
+var awgToolsVersionPattern = regexp.MustCompile(`(?i)amneziawg-tools\s+v?([0-9][A-Za-z0-9.+_-]*)`)
+)
 
 // CoreVersionManagerService resolves releases only from the fixed official
 // registry above. installDir and backupRoot are overrideable in tests; a
@@ -73,8 +135,14 @@ type CoreVersionComponent struct {
 	CurrentVersion  string    `json:"currentVersion"`
 	LatestVersion   string    `json:"latestVersion,omitempty"`
 	SourceRepo      string    `json:"sourceRepo"`
-	SourceURL       string    `json:"sourceUrl"`
-	ReleaseURL      string    `json:"releaseUrl,omitempty"`
+	SourceURL          string    `json:"sourceUrl"`
+	CurrentRevision    string    `json:"currentRevision,omitempty"`
+	CurrentRevisionURL string    `json:"currentRevisionUrl,omitempty"`
+	LatestRevision     string    `json:"latestRevision,omitempty"`
+	LatestRevisionURL  string    `json:"latestRevisionUrl,omitempty"`
+	LatestCommitAt     time.Time `json:"latestCommitAt,omitempty"`
+	LatestCommitSigned bool      `json:"latestCommitSigned"`
+	ReleaseURL         string    `json:"releaseUrl,omitempty"`
 	PublishedAt     time.Time `json:"publishedAt,omitempty"`
 	UpdateAvailable bool      `json:"updateAvailable"`
 	CanUpdate       bool      `json:"canUpdate"`
@@ -111,6 +179,27 @@ type coreVersionAsset struct {
 	Size               int64  `json:"size"`
 	Digest             string `json:"digest"`
 	BrowserDownloadURL string `json:"browser_download_url"`
+}
+
+type coreVersionBranchResponse struct {
+	Name   string `json:"name"`
+	Commit struct {
+		SHA string `json:"sha"`
+		Commit struct {
+			Committer struct {
+				Date time.Time `json:"date"`
+			} `json:"committer"`
+		} `json:"commit"`
+		Verification struct {
+			Verified bool `json:"verified"`
+		} `json:"verification"`
+	} `json:"commit"`
+}
+
+type coreVersionSourceRevision struct {
+	SHA       string
+	Committed time.Time
+	Signed    bool
 }
 
 type coreVersionBackupManifest struct {
@@ -178,31 +267,111 @@ func (s *CoreVersionManagerService) httpClient(allowedHosts ...string) *http.Cli
 // and the available rollback points. Components without a verifiable official
 // release are shown as managed by the panel/build process, never as updatable.
 func (s *CoreVersionManagerService) GetInfo() CoreVersionManagerInfo {
-	now := time.Now().UTC()
-	info := CoreVersionManagerInfo{CheckedAt: now}
+	info := CoreVersionManagerInfo{CheckedAt: time.Now().UTC()}
 
+	// Check all official sources concurrently. The settings page must remain
+	// responsive when one upstream is slow or unreachable.
+	var (
+		xrayRevision coreVersionSourceRevision
+		xrayErr      error
+		awgRevision  coreVersionSourceRevision
+		awgVersion   string
+		awgErr       error
+		toolsRelease *coreVersionRelease
+		toolsErr     error
+	)
+	var wg sync.WaitGroup
+	wg.Add(3)
+	go func() {
+		defer wg.Done()
+		xrayRevision, xrayErr = s.fetchGitHubBranch(coreVersionXrayRepo, coreVersionXrayBranch)
+	}()
+	go func() {
+		defer wg.Done()
+		awgRevision, awgErr = s.fetchGitHubBranch(coreVersionAWGKernelRepo, coreVersionAWGKernelBranch)
+		if awgErr == nil {
+			awgVersion, awgErr = s.fetchAWGKernelVersion(awgRevision.SHA)
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		toolsRelease, toolsErr = s.fetchLatestAWGToolsRelease()
+	}()
+	wg.Wait()
+
+	// Xray is embedded in the panel. Its build marker records the exact submodule
+	// commit used to create this binary; replacing the extracted file directly
+	// would be undone on the next panel start.
 	var core CoreService
-	xray := core.xrayStatus()
-	info.Components = append(info.Components, CoreVersionComponent{
-		ID:              "xray",
-		Name:            "Xray-core (patched, embedded)",
-		CurrentVersion:  firstNonEmptyCoreVersion(xray.Version, currentXrayVersion(), "unknown"),
-		SourceRepo:      "Sir-MmD/Xray-core",
-		SourceURL:       "https://github.com/Sir-MmD/Xray-core",
-		UpdateAvailable: false,
-		CanUpdate:       false,
-		UpdateReason:    "This fork has no published GitHub Release assets. Xray is pinned as a submodule and embedded in the panel binary; update it through a reviewed panel build, not by replacing the runtime file.",
-	})
-	info.Components = append(info.Components, CoreVersionComponent{
-		ID:              "awg-kmod",
-		Name:            "AmneziaWG kernel module (DKMS)",
-		CurrentVersion:  currentAmneziaWGKernelVersion(),
-		SourceRepo:      "amnezia-vpn/amneziawg-linux-kernel-module",
-		SourceURL:       "https://github.com/amnezia-vpn/amneziawg-linux-kernel-module",
-		UpdateAvailable: false,
-		CanUpdate:       false,
-		UpdateReason:    "The official repository currently has no Release assets with a publisher-provided SHA-256 digest. The installed source is vendored and DKMS-built for the host kernel; upgrading requires a reviewed source pin and kernel compatibility testing.",
-	})
+	xrayStatus := core.xrayStatus()
+	xrayCurrentRevision := corebundle.XraySourceCommit()
+	xrayComponent := CoreVersionComponent{
+		ID:                 "xray",
+		Name:               "Xray-core (patched, embedded)",
+		CurrentVersion:     firstNonEmptyCoreVersion(xrayStatus.Version, currentXrayVersion(), "unknown"),
+		SourceRepo:         coreVersionXrayRepo,
+		SourceURL:          "https://github.com/" + coreVersionXrayRepo,
+		CurrentRevision:    xrayCurrentRevision,
+		CurrentRevisionURL: sourceCommitURL(coreVersionXrayRepo, xrayCurrentRevision),
+		CanUpdate:          false,
+		Integrity:          "Exact Git submodule commit embedded by the panel build",
+	}
+	if xrayErr != nil {
+		xrayComponent.UpdateReason = "Could not check the official Xray source branch: " + xrayErr.Error()
+		if info.Warning == "" {
+			info.Warning = xrayComponent.UpdateReason
+		}
+	} else {
+		xrayComponent.LatestRevision = xrayRevision.SHA
+		xrayComponent.LatestRevisionURL = sourceCommitURL(coreVersionXrayRepo, xrayRevision.SHA)
+		xrayComponent.LatestCommitAt = xrayRevision.Committed
+		xrayComponent.LatestCommitSigned = xrayRevision.Signed
+		switch {
+		case xrayCurrentRevision == "":
+			xrayComponent.UpdateReason = "This panel build has no embedded Xray source marker. Rebuild with build/core/build.sh before source drift can be assessed."
+		case xrayCurrentRevision == xrayRevision.SHA:
+			xrayComponent.UpdateReason = "The embedded Xray source pin matches the official main branch."
+		default:
+			xrayComponent.UpdateAvailable = true
+			xrayComponent.UpdateReason = "A newer patched Xray source commit exists. Xray is embedded in the panel binary, so it must be reviewed, built and released as a new panel binary; a standalone replacement is not safe."
+		}
+	}
+	info.Components = append(info.Components, xrayComponent)
+
+	// The current module is vendored from a known upstream commit and DKMS-built
+	// for the target kernel. GitHub currently publishes no module Release asset
+	// with an independent digest, and the latest source has outstanding kernel
+	// ABI compatibility work; source drift is reported but not auto-installed.
+	awgComponent := CoreVersionComponent{
+		ID:                 "awg-kmod",
+		Name:               "AmneziaWG kernel module (DKMS)",
+		CurrentVersion:     currentAmneziaWGKernelVersion(),
+		SourceRepo:         coreVersionAWGKernelRepo,
+		SourceURL:          "https://github.com/" + coreVersionAWGKernelRepo,
+		CurrentRevision:    awgsrc.SourceCommit,
+		CurrentRevisionURL: sourceCommitURL(coreVersionAWGKernelRepo, awgsrc.SourceCommit),
+		CanUpdate:          false,
+		Integrity:          "Vendored source pinned to an official Git commit; DKMS build is host-kernel specific",
+	}
+	if awgErr != nil {
+		awgComponent.UpdateReason = "Could not verify the official AmneziaWG kernel-module source: " + awgErr.Error()
+		if info.Warning == "" {
+			info.Warning = awgComponent.UpdateReason
+		}
+	} else {
+		awgComponent.LatestRevision = awgRevision.SHA
+		awgComponent.LatestRevisionURL = sourceCommitURL(coreVersionAWGKernelRepo, awgRevision.SHA)
+		awgComponent.LatestCommitAt = awgRevision.Committed
+		awgComponent.LatestCommitSigned = awgRevision.Signed
+		awgComponent.LatestVersion = awgVersion
+		awgComponent.UpdateAvailable = awgsrc.SourceCommit != awgRevision.SHA
+		if awgComponent.UpdateAvailable {
+			awgComponent.UpdateReason = "A newer AmneziaWG 3.1 source is available, but no official kernel-module Release asset or publisher SHA-256 digest exists. Upstream kernel 7.0/7.1 compatibility changes are still under review; a source update requires a reviewed DKMS build matrix and rollback plan. Automatic installation is disabled."
+		} else {
+			awgComponent.UpdateReason = "The vendored AmneziaWG source matches the official master branch."
+		}
+	}
+	info.Components = append(info.Components, awgComponent)
 
 	tools := CoreVersionComponent{
 		ID:             "awg-tools",
@@ -212,17 +381,16 @@ func (s *CoreVersionManagerService) GetInfo() CoreVersionManagerInfo {
 		SourceURL:      "https://github.com/" + coreVersionAWGToolsRepo,
 		UpdateReason:   "Checking the official release metadata…",
 	}
-	release, err := s.fetchLatestAWGToolsRelease()
-	if err != nil {
-		tools.UpdateReason = "Could not verify the official release metadata: " + err.Error()
+	if toolsErr != nil {
+		tools.UpdateReason = "Could not verify the official release metadata: " + toolsErr.Error()
 		if info.Warning == "" {
 			info.Warning = tools.UpdateReason
 		}
 	} else {
-		tools.LatestVersion = strings.TrimPrefix(strings.TrimSpace(release.TagName), "v")
-		tools.ReleaseURL = release.HTMLURL
-		tools.PublishedAt = release.PublishedAt
-		asset, assetErr := selectAWGToolsAsset(release.Assets)
+		tools.LatestVersion = strings.TrimPrefix(strings.TrimSpace(toolsRelease.TagName), "v")
+		tools.ReleaseURL = toolsRelease.HTMLURL
+		tools.PublishedAt = toolsRelease.PublishedAt
+		asset, assetErr := selectAWGToolsAsset(toolsRelease.Assets)
 		if assetErr != nil {
 			tools.UpdateReason = assetErr.Error()
 		} else if _, digestErr := parseCoreVersionDigest(asset.Digest); digestErr != nil {
@@ -246,6 +414,113 @@ func (s *CoreVersionManagerService) GetInfo() CoreVersionManagerInfo {
 	info.Components = append(info.Components, tools)
 	info.Backups = s.ListBackups()
 	return info
+}
+
+func (s *CoreVersionManagerService) metadataHTTPClient(allowedHosts ...string) *http.Client {
+	client := s.httpClient(allowedHosts...)
+	// Release metadata and source-version lookups are small JSON/text requests.
+	// Keep the Core Settings page responsive when GitHub is unreachable.
+	if s.client == nil {
+		client.Timeout = 8 * time.Second
+	}
+	return client
+}
+
+func validGitCommitSHA(sha string) bool {
+	if len(sha) != 40 {
+		return false
+	}
+	for _, c := range sha {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return false
+		}
+	}
+	return true
+}
+
+func sourceCommitURL(repo, sha string) string {
+	if !validGitCommitSHA(sha) || (repo != coreVersionXrayRepo && repo != coreVersionAWGKernelRepo) {
+		return ""
+	}
+	return "https://github.com/" + repo + "/commit/" + strings.ToLower(sha)
+}
+
+func (s *CoreVersionManagerService) fetchGitHubBranch(repo, branch string) (coreVersionSourceRevision, error) {
+	var revision coreVersionSourceRevision
+	if repo != coreVersionXrayRepo || branch != coreVersionXrayBranch {
+		if repo != coreVersionAWGKernelRepo || branch != coreVersionAWGKernelBranch {
+			return revision, fmt.Errorf("repository/branch is not in the source allowlist")
+		}
+	}
+	req, err := http.NewRequest(http.MethodGet, "https://api.github.com/repos/"+repo+"/branches/"+branch, nil)
+	if err != nil {
+		return revision, err
+	}
+	req.Header.Set("User-Agent", "vpn-ui-core-version-manager")
+	req.Header.Set("Accept", "application/vnd.github+json")
+	resp, err := s.metadataHTTPClient("api.github.com").Do(req)
+	if err != nil {
+		return revision, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return revision, fmt.Errorf("GitHub branch API returned HTTP %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 256<<10))
+	if err != nil {
+		return revision, err
+	}
+	var info coreVersionBranchResponse
+	if err := json.Unmarshal(body, &info); err != nil {
+		return revision, fmt.Errorf("invalid GitHub branch metadata: %w", err)
+	}
+	if info.Name != branch || !validGitCommitSHA(info.Commit.SHA) {
+		return revision, fmt.Errorf("GitHub returned an unexpected branch identity or commit SHA")
+	}
+	revision.SHA = strings.ToLower(info.Commit.SHA)
+	revision.Committed = info.Commit.Commit.Committer.Date
+	revision.Signed = info.Commit.Verification.Verified
+	return revision, nil
+}
+
+func parseAWGKernelVersionHeader(data []byte) (string, error) {
+	match := awgKernelVersionPattern.FindSubmatch(data)
+	if len(match) != 2 {
+		return "", fmt.Errorf("upstream src/version.h has no valid WIREGUARD_VERSION")
+	}
+	version := strings.TrimSpace(string(match[1]))
+	if version == "" || len(version) > 80 {
+		return "", fmt.Errorf("upstream AmneziaWG kernel version is invalid")
+	}
+	return version, nil
+}
+
+func (s *CoreVersionManagerService) fetchAWGKernelVersion(commit string) (string, error) {
+	if !validGitCommitSHA(commit) {
+		return "", fmt.Errorf("upstream AmneziaWG source commit is invalid")
+	}
+	rawURL := "https://raw.githubusercontent.com/" + coreVersionAWGKernelRepo + "/" + strings.ToLower(commit) + "/src/version.h"
+	req, err := http.NewRequest(http.MethodGet, rawURL, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("User-Agent", "vpn-ui-core-version-manager")
+	resp, err := s.metadataHTTPClient("raw.githubusercontent.com").Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("official AmneziaWG version.h returned HTTP %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+	if err != nil {
+		return "", err
+	}
+	if len(body) >= 64<<10 {
+		return "", fmt.Errorf("official AmneziaWG version.h exceeded the size limit")
+	}
+	return parseAWGKernelVersionHeader(body)
 }
 
 func currentXrayVersion() string {
@@ -287,7 +562,7 @@ func currentAmneziaWGKernelVersion() string {
 		}
 	}
 	// DKMS package version (not the in-module wireguard version).
-	return awgsrc.Version + " (DKMS)"
+	return awgsrc.KernelVersion + " (vendored source)"
 }
 
 func (s *CoreVersionManagerService) fetchLatestAWGToolsRelease() (*coreVersionRelease, error) {
@@ -297,7 +572,7 @@ func (s *CoreVersionManagerService) fetchLatestAWGToolsRelease() (*coreVersionRe
 	}
 	req.Header.Set("User-Agent", "vpn-ui-core-version-manager")
 	req.Header.Set("Accept", "application/vnd.github+json")
-	resp, err := s.httpClient("api.github.com").Do(req)
+	resp, err := s.metadataHTTPClient("api.github.com").Do(req)
 	if err != nil {
 		return nil, err
 	}
