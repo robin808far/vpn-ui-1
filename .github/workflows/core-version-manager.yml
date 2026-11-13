@@ -1,0 +1,49 @@
+name: Core Version Manager CI
+
+on:
+  push:
+    branches:
+      - feature/core-version-manager
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Compile, integrity tests and template validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Check Go formatting
+        shell: bash
+        run: |
+          files="$(gofmt -l web/service/coreversionmanager.go web/service/coreversionmanager_test.go web/controller/core.go)"
+          if [[ -n "$files" ]]; then
+            echo "The following Go files need gofmt:"
+            echo "$files"
+            exit 1
+          fi
+
+      - name: Run Core Version Manager integrity and backup tests
+        run: >
+          go test ./web/service
+          -run '^(TestParseCoreVersionDigest|TestValidateAWGToolsAssetURL|TestVerifySidecar|TestExtractAWGToolsPayload|TestAWGToolsBackup.*)$'
+          -count=1
+
+      - name: Compile controller package
+        run: go test ./web/controller -run '^$' -count=1
+
+      - name: Validate templates and translations
+        run: >
+          go test ./web
+          -run '^(TestAllTemplatesParseAndProtocolFormsDefined|TestEditedTemplatesParse|TestTranslationsAreValidToml|TestTranslationKeyParity)$'
+          -count=1
