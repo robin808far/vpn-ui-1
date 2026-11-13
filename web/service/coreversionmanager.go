@@ -641,7 +641,10 @@ func (s *CoreVersionManagerService) installAWGToolsPayload(payload awgToolsPaylo
 		{name: "awg-quick", data: payload.AWGQuick},
 	} {
 		if err := writeCoreVersionAtomically(filepath.Join(dir, item.name), item.data, 0755); err != nil {
-			_ = s.restoreAWGToolsBackup(backup)
+			restoreErr := s.restoreAWGToolsBackup(backup)
+			if restoreErr != nil {
+				return nil, fmt.Errorf("installing %s failed (%v) and restoring the previous files also failed (%v); backup: %s", item.name, err, restoreErr, backup.ID)
+			}
 			return nil, fmt.Errorf("installing %s failed; previous files were restored: %w", item.name, err)
 		}
 	}
@@ -746,8 +749,22 @@ func (s *CoreVersionManagerService) createAWGToolsBackup(fromVersion, toVersion 
 }
 
 func (s *CoreVersionManagerService) restoreAWGToolsBackup(manifest *coreVersionBackupManifest) error {
-	if manifest == nil || manifest.Component != "awg-tools" || !coreVersionIDPattern.MatchString(manifest.ID) {
+	if manifest == nil || manifest.Component != "awg-tools" ||
+		!coreVersionIDPattern.MatchString(manifest.ID) || manifest.ID == "." || manifest.ID == ".." {
 		return fmt.Errorf("invalid AWG Tools backup manifest")
+	}
+	if len(manifest.Files) != 2 {
+		return fmt.Errorf("AWG Tools backup manifest must contain exactly two files")
+	}
+	seen := make(map[string]bool, 2)
+	for _, entry := range manifest.Files {
+		if (entry.Name != "awg" && entry.Name != "awg-quick") || seen[entry.Name] {
+			return fmt.Errorf("backup contains an unexpected or duplicate file entry")
+		}
+		seen[entry.Name] = true
+	}
+	if !seen["awg"] || !seen["awg-quick"] {
+		return fmt.Errorf("AWG Tools backup manifest is incomplete")
 	}
 	dir := filepath.Join(s.backupPath(), manifest.ID, "files")
 	for _, entry := range manifest.Files {
@@ -804,12 +821,15 @@ func (s *CoreVersionManagerService) RollbackAWGTools(backupID string) (*CoreVers
 		return nil, fmt.Errorf("backup does not belong to AmneziaWG Tools")
 	}
 	fromVersion := currentAWGToolsVersion()
-	safety, err := s.createAWGToolsBackup(fromVersion, "rollback-safety")
+	safety, err := s.createAWGToolsBackup(fromVersion, fromVersion)
 	if err != nil {
 		return nil, fmt.Errorf("could not snapshot the current files before rollback: %w", err)
 	}
 	if err := s.restoreAWGToolsBackup(&manifest); err != nil {
-		_ = s.restoreAWGToolsBackup(safety)
+		restoreErr := s.restoreAWGToolsBackup(safety)
+		if restoreErr != nil {
+			return nil, fmt.Errorf("rollback failed (%v) and restoring the pre-rollback state also failed (%v); safety backup: %s", err, restoreErr, safety.ID)
+		}
 		return nil, fmt.Errorf("rollback failed; the pre-rollback state was restored: %w", err)
 	}
 	if err := s.validateRolledBackAWGTools(); err != nil {
