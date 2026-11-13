@@ -36,7 +36,18 @@ jobs:
       - name: Run Core Version Manager integrity and backup tests
         run: >
           go test ./web/service
-          -run '^(TestParseCoreVersionDigest|TestValidateAWGToolsAssetURL|TestVerifySidecar|TestExtractAWGToolsPayload|TestAWGToolsBackup.*)$'
+          -run '^(TestParseCoreVersionDigest|TestValidateAWGToolsAssetURL|TestVerifySidecar|TestExtractAWGToolsPayload|TestAWGToolsBackup.*|TestCoreVersionSourceRevisionHelpers|TestParseAWGKernelVersionHeader|TestSourceCommitURLRejectsUnknownRepositories)
+          -count=1
+
+      - name: Compile controller package
+        run: go test ./web/controller -run '^$' -count=1
+
+      - name: Validate templates and translations
+        run: >
+          go test ./web
+          -run '^(TestAllTemplatesParseAndProtocolFormsDefined|TestEditedTemplatesParse|TestTranslationsAreValidToml|TestTranslationKeyParity)$'
+          -count=1
+
           -count=1
 
       - name: Compile controller package
