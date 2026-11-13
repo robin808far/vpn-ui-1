@@ -61,34 +61,34 @@ type CoreVersionManagerService struct {
 }
 
 type CoreVersionManagerInfo struct {
-	CheckedAt  time.Time                 `json:"checkedAt"`
-	Components []CoreVersionComponent    `json:"components"`
-	Backups    []CoreVersionBackupInfo  `json:"backups"`
-	Warning    string                    `json:"warning,omitempty"`
+	CheckedAt  time.Time               `json:"checkedAt"`
+	Components []CoreVersionComponent  `json:"components"`
+	Backups    []CoreVersionBackupInfo `json:"backups"`
+	Warning    string                  `json:"warning,omitempty"`
 }
 
 type CoreVersionComponent struct {
-	ID               string    `json:"id"`
-	Name             string    `json:"name"`
-	CurrentVersion   string    `json:"currentVersion"`
-	LatestVersion    string    `json:"latestVersion,omitempty"`
-	SourceRepo       string    `json:"sourceRepo"`
-	SourceURL        string    `json:"sourceUrl"`
-	ReleaseURL       string    `json:"releaseUrl,omitempty"`
-	PublishedAt      time.Time `json:"publishedAt,omitempty"`
-	UpdateAvailable  bool      `json:"updateAvailable"`
-	CanUpdate        bool      `json:"canUpdate"`
-	Integrity        string    `json:"integrity,omitempty"`
-	AssetSHA256      string    `json:"assetSha256,omitempty"`
-	UpdateReason     string    `json:"updateReason,omitempty"`
+	ID              string    `json:"id"`
+	Name            string    `json:"name"`
+	CurrentVersion  string    `json:"currentVersion"`
+	LatestVersion   string    `json:"latestVersion,omitempty"`
+	SourceRepo      string    `json:"sourceRepo"`
+	SourceURL       string    `json:"sourceUrl"`
+	ReleaseURL      string    `json:"releaseUrl,omitempty"`
+	PublishedAt     time.Time `json:"publishedAt,omitempty"`
+	UpdateAvailable bool      `json:"updateAvailable"`
+	CanUpdate       bool      `json:"canUpdate"`
+	Integrity       string    `json:"integrity,omitempty"`
+	AssetSHA256     string    `json:"assetSha256,omitempty"`
+	UpdateReason    string    `json:"updateReason,omitempty"`
 }
 
 type CoreVersionBackupInfo struct {
-	ID            string    `json:"id"`
-	Component     string    `json:"component"`
-	FromVersion   string    `json:"fromVersion"`
-	ToVersion     string    `json:"toVersion"`
-	CreatedAt     time.Time `json:"createdAt"`
+	ID          string    `json:"id"`
+	Component   string    `json:"component"`
+	FromVersion string    `json:"fromVersion"`
+	ToVersion   string    `json:"toVersion"`
+	CreatedAt   time.Time `json:"createdAt"`
 }
 
 type CoreVersionUpdateResult struct {
@@ -100,10 +100,10 @@ type CoreVersionUpdateResult struct {
 }
 
 type coreVersionRelease struct {
-	TagName     string                `json:"tag_name"`
-	HTMLURL     string                `json:"html_url"`
-	PublishedAt time.Time             `json:"published_at"`
-	Assets      []coreVersionAsset    `json:"assets"`
+	TagName     string             `json:"tag_name"`
+	HTMLURL     string             `json:"html_url"`
+	PublishedAt time.Time          `json:"published_at"`
+	Assets      []coreVersionAsset `json:"assets"`
 }
 
 type coreVersionAsset struct {
@@ -341,7 +341,7 @@ func validateAWGToolsAssetURL(rawURL, tag, name string) error {
 	if err != nil || u.Scheme != "https" || u.Host != "github.com" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
 		return fmt.Errorf("the release asset URL is not a trusted HTTPS GitHub URL")
 	}
-	want := "/"+coreVersionAWGToolsRepo+"/releases/download/"+tag+"/"+name
+	want := "/" + coreVersionAWGToolsRepo + "/releases/download/" + tag + "/" + name
 	if u.EscapedPath() != want || path.Clean(u.Path) != u.Path {
 		return fmt.Errorf("the release asset URL does not match the official release")
 	}

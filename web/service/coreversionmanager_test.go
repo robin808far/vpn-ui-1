@@ -70,9 +70,9 @@ func makeAWGTestArchive(t *testing.T, mutate func(*zip.Writer) error) []byte {
 	awg := []byte("not-an-elf-test-payload")
 	quick := []byte("#!/bin/bash\necho test\n")
 	files := map[string][]byte{
-		"awg": awg,
-		"awg-quick": quick,
-		"awg.sha256": []byte(coreVersionTestSHA256(awg) + "\n"),
+		"awg":              awg,
+		"awg-quick":        quick,
+		"awg.sha256":       []byte(coreVersionTestSHA256(awg) + "\n"),
 		"awg-quick.sha256": []byte(coreVersionTestSHA256(quick) + "\n"),
 	}
 	var buf bytes.Buffer
@@ -138,9 +138,9 @@ func TestExtractAWGToolsPayloadRejectsChecksumMismatch(t *testing.T) {
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
 	files := map[string][]byte{
-		"awg": []byte("payload"),
-		"awg-quick": []byte("#!/bin/bash\n"),
-		"awg.sha256": []byte(fmt.Sprintf("%s\n", coreVersionTestSHA256([]byte("wrong")))),
+		"awg":              []byte("payload"),
+		"awg-quick":        []byte("#!/bin/bash\n"),
+		"awg.sha256":       []byte(fmt.Sprintf("%s\n", coreVersionTestSHA256([]byte("wrong")))),
 		"awg-quick.sha256": []byte(coreVersionTestSHA256([]byte("#!/bin/bash\n")) + "\n"),
 	}
 	for name, data := range files {
@@ -159,7 +159,6 @@ func TestExtractAWGToolsPayloadRejectsChecksumMismatch(t *testing.T) {
 		t.Fatal("archive with mismatched file checksum was accepted")
 	}
 }
-
 
 func TestAWGToolsBackupAndRestore(t *testing.T) {
 	installDir := t.TempDir()

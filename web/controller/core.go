@@ -259,7 +259,6 @@ func (a *CoreController) saveCoreConfig(c *gin.Context) {
 	}, nil)
 }
 
-
 // versionManagerInfo returns trusted core release metadata and local rollback points.
 func (a *CoreController) versionManagerInfo(c *gin.Context) {
 	jsonObj(c, a.coreVersionService.GetInfo(), nil)
