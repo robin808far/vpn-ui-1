@@ -77,6 +77,12 @@
                             target="_blank" rel="noopener noreferrer"><code>[[ component.latestRevision.slice(0, 12) ]]</code></a>
                           <code v-else>[[ component.latestRevision.slice(0, 12) ]]</code>
                           <span v-if="component.latestCommitAt"> · [[ new Date(component.latestCommitAt).toLocaleString() ]]</span>
+                          <a-tag v-if="component.latestCommitSigned" color="green" size="small">
+                            {{ i18n "pages.core.versionManagerSignedCommit" }}
+                          </a-tag>
+                          <a-tag v-else size="small">
+                            {{ i18n "pages.core.versionManagerUnsignedCommit" }}
+                          </a-tag>
                         </div>
                         <div class="version-manager-meta" v-if="component.publishedAt">
                           {{ i18n "pages.core.versionManagerPublished" }}: [[ new Date(component.publishedAt).toLocaleString() ]]
