@@ -138,13 +138,8 @@ func (s *CoreVersionManagerService) installPath() string {
 	if s.installDir != "" {
 		return s.installDir
 	}
-	// Update the same directory that currently provides awg, so the panel does
-	// not install a shadow copy while continuing to execute the distro binary.
-	for _, name := range []string{"awg", "awg-quick"} {
-		if current, err := exec.LookPath(name); err == nil {
-			return filepath.Dir(current)
-		}
-	}
+	// Keep the distro/package-manager-owned binaries intact. /usr/local/bin is
+	// intentionally preferred by the standard systemd PATH on supported hosts.
 	return "/usr/local/bin"
 }
 
@@ -371,6 +366,37 @@ func awgToolsPlatformSupported() (bool, string) {
 	}
 	if !commandExists("bash") {
 		return false, "Bash is required by awg-quick but is not installed."
+	}
+	// The update is installed under /usr/local/bin to preserve distro-owned
+	// files. It must actually win PATH lookup after installation, otherwise the
+	// panel could keep launching the older /usr/bin copy.
+	paths := filepath.SplitList(os.Getenv("PATH"))
+	localIndex := -1
+	for i, entry := range paths {
+		if filepath.Clean(entry) == "/usr/local/bin" {
+			localIndex = i
+			break
+		}
+	}
+	if localIndex < 0 {
+		return false, "The panel process PATH does not include /usr/local/bin; refusing to install a binary that would not be selected."
+	}
+	for _, name := range []string{"awg", "awg-quick"} {
+		if current, err := exec.LookPath(name); err == nil {
+			if filepath.Dir(current) != "/usr/local/bin" {
+				for i, entry := range paths {
+					if filepath.Clean(entry) == filepath.Dir(current) && i < localIndex {
+						return false, fmt.Sprintf("%s is resolved from %s before /usr/local/bin; refusing to shadow the active binary.", name, filepath.Dir(current))
+					}
+				}
+			}
+		}
+	}
+	for _, name := range []string{"awg", "awg-quick"} {
+		target := filepath.Join("/usr/local/bin", name)
+		if st, err := os.Lstat(target); err == nil && st.Mode()&os.ModeSymlink != 0 {
+			return false, fmt.Sprintf("%s is a symlink; refusing to replace it automatically.", target)
+		}
 	}
 	out, err := exec.Command("getconf", "GNU_LIBC_VERSION").Output()
 	if err != nil {
@@ -655,7 +681,21 @@ func (s *CoreVersionManagerService) validateInstalledAWGTools(expectedVersion st
 
 func (s *CoreVersionManagerService) createAWGToolsBackup(fromVersion, toVersion string) (*coreVersionBackupManifest, error) {
 	id := time.Now().UTC().Format("20060102T150405.000000000Z")
-	dir := filepath.Join(s.backupPath(), id)
+	root := s.backupPath()
+	if err := os.MkdirAll(root, 0700); err != nil {
+		return nil, err
+	}
+	rootInfo, err := os.Lstat(root)
+	if err != nil {
+		return nil, err
+	}
+	if !rootInfo.IsDir() || rootInfo.Mode()&os.ModeSymlink != 0 {
+		return nil, fmt.Errorf("backup root must be a real directory")
+	}
+	if err := os.Chmod(root, 0700); err != nil {
+		return nil, err
+	}
+	dir := filepath.Join(root, id)
 	if err := os.MkdirAll(filepath.Join(dir, "files"), 0700); err != nil {
 		return nil, err
 	}
@@ -748,7 +788,7 @@ func (s *CoreVersionManagerService) RollbackAWGTools(backupID string) (*CoreVers
 	if os.Geteuid() != 0 {
 		return nil, fmt.Errorf("rollback requires root privileges")
 	}
-	if !coreVersionIDPattern.MatchString(backupID) || filepath.Base(backupID) != backupID {
+	if !coreVersionIDPattern.MatchString(backupID) || backupID == "." || backupID == ".." || filepath.Base(backupID) != backupID {
 		return nil, fmt.Errorf("invalid backup identifier")
 	}
 	manifestPath := filepath.Join(s.backupPath(), backupID, "manifest.json")
