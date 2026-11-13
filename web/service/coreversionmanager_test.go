@@ -6,6 +6,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -155,5 +157,92 @@ func TestExtractAWGToolsPayloadRejectsChecksumMismatch(t *testing.T) {
 	}
 	if _, err := extractAWGToolsPayload(buf.Bytes()); err == nil {
 		t.Fatal("archive with mismatched file checksum was accepted")
+	}
+}
+
+
+func TestAWGToolsBackupAndRestore(t *testing.T) {
+	installDir := t.TempDir()
+	backupDir := t.TempDir()
+	manager := &CoreVersionManagerService{installDir: installDir, backupRoot: backupDir}
+
+	awg := []byte("old awg executable")
+	quick := []byte("#!/bin/bash\necho old\n")
+	if err := os.WriteFile(filepath.Join(installDir, "awg"), awg, 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(installDir, "awg-quick"), quick, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	backup, err := manager.createAWGToolsBackup("3.0.0", "3.1.0")
+	if err != nil {
+		t.Fatalf("create backup: %v", err)
+	}
+	if backup.ID == "" {
+		t.Fatal("backup ID was empty")
+	}
+	if err := os.WriteFile(filepath.Join(installDir, "awg"), []byte("new awg"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(installDir, "awg-quick")); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := manager.restoreAWGToolsBackup(backup); err != nil {
+		t.Fatalf("restore backup: %v", err)
+	}
+	gotAWG, err := os.ReadFile(filepath.Join(installDir, "awg"))
+	if err != nil || !bytes.Equal(gotAWG, awg) {
+		t.Fatalf("restored awg mismatch: %q, %v", gotAWG, err)
+	}
+	gotQuick, err := os.ReadFile(filepath.Join(installDir, "awg-quick"))
+	if err != nil || !bytes.Equal(gotQuick, quick) {
+		t.Fatalf("restored awg-quick mismatch: %q, %v", gotQuick, err)
+	}
+	st, err := os.Stat(filepath.Join(installDir, "awg"))
+	if err != nil || st.Mode().Perm() != 0750 {
+		t.Fatalf("restored awg mode = %v, %v; want 0750", st, err)
+	}
+}
+
+func TestAWGToolsBackupRestoresOriginalAbsence(t *testing.T) {
+	installDir := t.TempDir()
+	backupDir := t.TempDir()
+	manager := &CoreVersionManagerService{installDir: installDir, backupRoot: backupDir}
+
+	backup, err := manager.createAWGToolsBackup("", "3.1.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(installDir, "awg"), []byte("new file"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.restoreAWGToolsBackup(backup); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(installDir, "awg")); !os.IsNotExist(err) {
+		t.Fatalf("rollback should remove a file that did not exist before, stat error: %v", err)
+	}
+}
+
+func TestAWGToolsBackupRejectsCorruptedSnapshot(t *testing.T) {
+	installDir := t.TempDir()
+	backupDir := t.TempDir()
+	manager := &CoreVersionManagerService{installDir: installDir, backupRoot: backupDir}
+	original := []byte("old awg")
+	if err := os.WriteFile(filepath.Join(installDir, "awg"), original, 0755); err != nil {
+		t.Fatal(err)
+	}
+	backup, err := manager.createAWGToolsBackup("3.0.0", "3.1.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot := filepath.Join(backupDir, backup.ID, "files", "awg")
+	if err := os.WriteFile(snapshot, []byte("tampered"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.restoreAWGToolsBackup(backup); err == nil {
+		t.Fatal("corrupted backup file was accepted")
 	}
 }
