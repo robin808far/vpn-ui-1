@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/mhsanaei/3x-ui/v2/awgsrc"
+	"github.com/mhsanaei/3x-ui/v2/xray"
 )
 
 // Core Version Manager deliberately supports only components with a fixed,
@@ -168,7 +169,9 @@ func (s *CoreVersionManagerService) httpClient(allowedHosts ...string) *http.Cli
 			if len(via) >= 5 {
 				return fmt.Errorf("too many redirects")
 			}
-			if req.URL.Scheme != "https" || !allowed[strings.ToLower(req.URL.Hostname())] {
+			if req.URL.Scheme != "https" || req.URL.User != nil ||
+				(req.URL.Port() != "" && req.URL.Port() != "443") ||
+				!allowed[strings.ToLower(req.URL.Hostname())] {
 				return fmt.Errorf("redirect to an untrusted host was rejected")
 			}
 			return nil
@@ -188,7 +191,7 @@ func (s *CoreVersionManagerService) GetInfo() CoreVersionManagerInfo {
 	info.Components = append(info.Components, CoreVersionComponent{
 		ID:              "xray",
 		Name:            "Xray-core (patched, embedded)",
-		CurrentVersion:  firstNonEmptyCoreVersion(xray.Version, "unknown"),
+		CurrentVersion:  firstNonEmptyCoreVersion(xray.Version, currentXrayVersion(), "unknown"),
 		SourceRepo:      "Sir-MmD/Xray-core",
 		SourceURL:       "https://github.com/Sir-MmD/Xray-core",
 		UpdateAvailable: false,
@@ -248,6 +251,22 @@ func (s *CoreVersionManagerService) GetInfo() CoreVersionManagerInfo {
 	info.Components = append(info.Components, tools)
 	info.Backups = s.ListBackups()
 	return info
+}
+
+func currentXrayVersion() string {
+	bin := xray.GetBinaryPath()
+	if _, err := os.Stat(bin); err != nil {
+		return ""
+	}
+	out, err := exec.Command(bin, "-version").CombinedOutput()
+	if err != nil {
+		return ""
+	}
+	fields := strings.Fields(string(out))
+	if len(fields) < 2 {
+		return ""
+	}
+	return strings.TrimSpace(fields[1])
 }
 
 func currentAWGToolsVersion() string {
@@ -324,7 +343,7 @@ func selectAWGToolsAsset(assets []coreVersionAsset) (coreVersionAsset, error) {
 // exact release tag and expected asset name. No user-supplied URL is ever used.
 func validateAWGToolsAssetURL(rawURL, tag, name string) error {
 	u, err := url.Parse(rawURL)
-	if err != nil || u.Scheme != "https" || strings.ToLower(u.Hostname()) != "github.com" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+	if err != nil || u.Scheme != "https" || u.Host != "github.com" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
 		return fmt.Errorf("the release asset URL is not a trusted HTTPS GitHub URL")
 	}
 	want := "/"+coreVersionAWGToolsRepo+"/releases/download/"+tag+"/"+name
