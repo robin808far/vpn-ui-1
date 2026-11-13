@@ -246,7 +246,6 @@ func TestAWGToolsBackupRejectsCorruptedSnapshot(t *testing.T) {
 	}
 }
 
-
 func TestAWGToolsRestoreRejectsIncompleteManifest(t *testing.T) {
 	installDir := t.TempDir()
 	backupDir := t.TempDir()
