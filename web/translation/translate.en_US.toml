@@ -143,6 +143,8 @@
 "versionManagerLatestSource" = "Latest official source"
 "versionManagerBuildRequired" = "Source update – build required"
 "versionManagerUpToDate" = "Up to date"
+"versionManagerSignedCommit" = "Verified commit signature"
+"versionManagerUnsignedCommit" = "Commit signature not verified"
 "versionManagerRefresh" = "Check releases"
 "versionManagerCurrent" = "Installed"
 "versionManagerLatest" = "Latest official"
