@@ -98,7 +98,10 @@
                         <a-tag color="green" v-else-if="component.updateAvailable && component.canUpdate">
                           {{ i18n "pages.core.versionManagerAvailable" }}
                         </a-tag>
-                        <a-tag color="blue" v-else-if="!component.canUpdate && !component.updateAvailable">
+                        <a-tag color="green" v-else-if="component.latestVersion && !component.updateAvailable">
+                          {{ i18n "pages.core.versionManagerUpToDate" }}
+                        </a-tag>
+                        <a-tag color="blue" v-else-if="!component.canUpdate">
                           {{ i18n "pages.core.versionManagerManaged" }}
                         </a-tag>
                         <a-popconfirm v-if="component.id === 'awg-tools' && component.canUpdate"
