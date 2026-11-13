@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -280,5 +281,44 @@ func TestAWGToolsRestoreRejectsDuplicateManifestEntries(t *testing.T) {
 	duplicate.Files = []coreVersionBackupFile{backup.Files[0], backup.Files[0]}
 	if err := manager.restoreAWGToolsBackup(&duplicate); err == nil {
 		t.Fatal("duplicate backup manifest entry was accepted")
+	}
+}
+
+
+func TestCoreVersionSourceRevisionHelpers(t *testing.T) {
+	valid := strings.Repeat("a", 40)
+	if !validGitCommitSHA(valid) {
+		t.Fatal("valid 40-character commit SHA was rejected")
+	}
+	for _, invalid := range []string{"", "abc", strings.Repeat("g", 40), strings.Repeat("a", 41)} {
+		if validGitCommitSHA(invalid) {
+			t.Errorf("invalid commit SHA accepted: %q", invalid)
+		}
+	}
+	wantURL := "https://github.com/" + coreVersionXrayRepo + "/commit/" + valid
+	if got := sourceCommitURL(coreVersionXrayRepo, valid); got != wantURL {
+		t.Fatalf("sourceCommitURL()=%q, want %q", got, wantURL)
+	}
+	if got := sourceCommitURL("attacker.example/repo", valid); got != "" {
+		t.Fatalf("sourceCommitURL accepted an untrusted repository: %q", got)
+	}
+}
+
+func TestParseAWGKernelVersionHeader(t *testing.T) {
+	got, err := parseAWGKernelVersionHeader([]byte("#ifndef WIREGUARD_VERSION\n#define WIREGUARD_VERSION \"3.1.20260812\"\n#endif\n"))
+	if err != nil {
+		t.Fatalf("parseAWGKernelVersionHeader: %v", err)
+	}
+	if got != "3.1.20260812" {
+		t.Fatalf("kernel version=%q, want 3.1.20260812", got)
+	}
+	for _, invalid := range [][]byte{
+		[]byte("#define OTHER_VERSION \"3.1\""),
+		[]byte("#define WIREGUARD_VERSION"),
+		[]byte("#define WIREGUARD_VERSION \"\""),
+	} {
+		if _, err := parseAWGKernelVersionHeader(invalid); err == nil {
+			t.Errorf("invalid version header was accepted: %q", invalid)
+		}
 	}
 }
