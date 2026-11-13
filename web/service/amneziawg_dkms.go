@@ -350,26 +350,26 @@ func awgKernelsMissingModule() []string {
 	return out
 }
 
-// awgSupportedDistros is what the operator is told to use when their host cannot build the
-// module. Keep in sync with awgKernelModuleSupported and the matrix results below.
+// awgSupportedDistros is the validated distro/kernel combination for the vendored module.
 const awgSupportedDistros = "Debian 12/13 or Ubuntu 24.04/26.04 with a tested Linux kernel below 7.0"
 
 // awgKernelModuleSupported reports whether the vendored AmneziaWG source is
 // validated against the running kernel.
 //
-// Upstream master is currently 3.1, but two kernel ABI fixes needed by newer
+// Upstream master is currently AWG 3.1, but two kernel ABI fixes needed by newer
 // kernels are still open upstream:
 //   - PR #269: setup_udp_tunnel_sock signature change on Linux 7.0.
 //   - PR #184: IPv6 route lookup API change on Linux 7.1.
 // PR #176 fixed an earlier ipv6_stub issue but does not cover these later ABI
-// changes. Until the fixes are merged and the module is rebuilt/tested, refuse
-// AmneziaWG on Linux 7.0+. Other VPN protocols are not affected.
+// changes. Until the fixes are merged and the module is rebuilt and tested,
+// refuse AmneziaWG on Linux 7.0+. Other VPN protocols are not affected.
 func awgKernelModuleSupported() (bool, string) {
-	if maj, min, ok := runningKernelVersion(); ok && (maj > 7 || (maj == 7 && min >= 1)) {
+	if maj, min, ok := runningKernelVersion(); ok && kernelVersionAtLeast(maj, min, 7, 0) {
 		return false, fmt.Sprintf(
-			"not supported on Linux %d.%d: the AmneziaWG module does not build on kernel 7.1 or newer "+
-				"(the kernel removed ipv6_stub and upstream has not adapted yet). Every other protocol "+
-				"is unaffected. For AmneziaWG use %s.", maj, min, awgSupportedDistros)
+			"not supported on Linux %d.%d: the current AmneziaWG source has an unresolved setup_udp_tunnel_sock "+
+				"compatibility issue from Linux 7.0 (upstream PR #269); Linux 7.1 also needs the IPv6 route lookup fix "+
+				"(upstream PR #184). Use a tested kernel below 7.0. Every other VPN protocol is unaffected.",
+			maj, min)
 	}
 
 	id := strings.ToLower(strings.TrimSpace(osReleaseField("ID")))
@@ -380,15 +380,22 @@ func awgKernelModuleSupported() (bool, string) {
 		return true, ""
 	case isEnterpriseLinux() || id == "fedora" || strings.Contains(like, "fedora"):
 		return false, fmt.Sprintf(
-			"not supported on %s: the AmneziaWG module fails to build against RHEL-family and Fedora "+
-				"kernels (their backported kernels break thfunc awgKernelModuleSupported() (bool, string) {
-	if maj, min, ok := runningKernelVersion(); ok && kernelVersionAtLeast(maj, min, 7, 0) {
+			"not supported on %s: the vendored AmneziaWG source has unresolved kernel compatibility issues. "+
+				"Every other VPN protocol is unaffected. For AmneziaWG use %s.",
+			distroPretty(), awgSupportedDistros)
+	default:
 		return false, fmt.Sprintf(
-			"not supported on Linux %d.%d: the current AmneziaWG source has an unresolved setup_udp_tunnel_sock "+
-				"compatibility issue from Linux 7.0 (upstream PR #269); Linux 7.1 also needs the IPv6 route lookup fix "+
-				"(upstream PR #184). Use a tested kernel below 7.0. Every other VPN protocol is unaffected.",
-			maj, min)
-	}sion applied to the running kernel.
+			"%s is not a tested host for the AmneziaWG module, so setup did not attempt the build. "+
+				"Every other protocol is unaffected. For AmneziaWG use %s.",
+			distroPretty(), awgSupportedDistros)
+	}
+}
+
+// kernelVersionAtLeast compares a parsed major/minor pair without relying on distro names.
+func kernelVersionAtLeast(major, minor, requiredMajor, requiredMinor int) bool {
+	return major > requiredMajor || (major == requiredMajor && minor >= requiredMinor)
+}
+
 func runningKernelVersion() (int, int, bool) { return parseKernelVersion(runningKernel()) }
 
 // parseKernelVersion pulls the major and minor out of a `uname -r` string. It has to cope
