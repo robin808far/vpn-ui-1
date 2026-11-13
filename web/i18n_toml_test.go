@@ -80,7 +80,7 @@ var knownMissing = keySet(
 	"pages.core.versionManagerOfficialRelease", "pages.core.versionManagerNoData",
 	"pages.core.versionManagerBackups", "pages.core.versionManagerNoBackups",
 	"pages.core.versionManagerRollback", "pages.core.versionManagerConfirmRollback",
-	"pages.core.versionManagerError",
+	"pages.core.toasts.versionManagerError",
 	"pages.core.absent", "pages.core.actions", "pages.core.consoleTitle",
 	"pages.core.cores", "pages.core.disabled", "pages.core.editConfig",
 	"pages.core.enabled", "pages.core.hideLog", "pages.core.inbounds",
