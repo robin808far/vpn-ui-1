@@ -768,7 +768,7 @@
         const msg = await HttpUtil.post('/panel/core/version-manager/awg-tools/update');
         this.versionManagerBusy = '';
         if (msg && msg.success) {
-          await this.loadVersionManager(false);
+          await this.loadVersionManager(true);
           await this.loadStatus(false);
         }
       },
