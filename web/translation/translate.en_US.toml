@@ -138,6 +138,7 @@
 "configOverridden" = "Overridden"
 "versionManagerTitle" = "Core Version Manager"
 "versionManagerSubtitle" = "Official releases, checksum verification, backups and rollback"
+"versionManagerBundleNote" = "Other bundled VPN daemons and the patched Xray core are updated through a new panel build. AmneziaWG kernel-module changes require separate kernel compatibility checks and are not installed from this page."
 "versionManagerRefresh" = "Check releases"
 "versionManagerCurrent" = "Installed"
 "versionManagerLatest" = "Latest official"
