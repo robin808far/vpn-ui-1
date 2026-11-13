@@ -284,7 +284,6 @@ func TestAWGToolsRestoreRejectsDuplicateManifestEntries(t *testing.T) {
 	}
 }
 
-
 func TestCoreVersionSourceRevisionHelpers(t *testing.T) {
 	valid := strings.Repeat("a", 40)
 	if !validGitCommitSHA(valid) {

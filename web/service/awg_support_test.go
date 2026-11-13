@@ -9,19 +9,19 @@ import (
 // real-world shapes of `uname -r` across the supported matrix.
 func TestRunningKernelVersionParsing(t *testing.T) {
 	cases := []struct {
-		in        string
-		maj, min  int
-		ok        bool
+		in       string
+		maj, min int
+		ok       bool
 	}{
-		{"6.8.0-136-generic", 6, 8, true},                 // ubuntu 24
-		{"7.0.0-28-generic", 7, 0, true},                  // ubuntu 26
-		{"6.1.0-51-amd64", 6, 1, true},                    // debian 12
-		{"6.12.95+deb13-amd64", 6, 12, true},              // debian 13 (note the +deb13)
-		{"6.12.86+deb13-cloud-amd64", 6, 12, true},        // debian 13 cloud flavour
-		{"7.1.3-arch2-2", 7, 1, true},                     // arch
-		{"7.1.3-101.fc43.x86_64", 7, 1, true},             // fedora 43
-		{"5.14.0-687.26.1.el9_8.x86_64", 5, 14, true},     // alma/rocky/centos 9
-		{"6.12.0-246.el10.x86_64", 6, 12, true},           // el10
+		{"6.8.0-136-generic", 6, 8, true},             // ubuntu 24
+		{"7.0.0-28-generic", 7, 0, true},              // ubuntu 26
+		{"6.1.0-51-amd64", 6, 1, true},                // debian 12
+		{"6.12.95+deb13-amd64", 6, 12, true},          // debian 13 (note the +deb13)
+		{"6.12.86+deb13-cloud-amd64", 6, 12, true},    // debian 13 cloud flavour
+		{"7.1.3-arch2-2", 7, 1, true},                 // arch
+		{"7.1.3-101.fc43.x86_64", 7, 1, true},         // fedora 43
+		{"5.14.0-687.26.1.el9_8.x86_64", 5, 14, true}, // alma/rocky/centos 9
+		{"6.12.0-246.el10.x86_64", 6, 12, true},       // el10
 		{"", 0, 0, false},
 		{"garbage", 0, 0, false},
 	}

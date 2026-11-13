@@ -74,11 +74,11 @@ type CoreVersionManagerInfo struct {
 }
 
 type CoreVersionComponent struct {
-	ID              string    `json:"id"`
-	Name            string    `json:"name"`
-	CurrentVersion  string    `json:"currentVersion"`
-	LatestVersion   string    `json:"latestVersion,omitempty"`
-	SourceRepo      string    `json:"sourceRepo"`
+	ID                 string    `json:"id"`
+	Name               string    `json:"name"`
+	CurrentVersion     string    `json:"currentVersion"`
+	LatestVersion      string    `json:"latestVersion,omitempty"`
+	SourceRepo         string    `json:"sourceRepo"`
 	SourceURL          string    `json:"sourceUrl"`
 	CurrentRevision    string    `json:"currentRevision,omitempty"`
 	CurrentRevisionURL string    `json:"currentRevisionUrl,omitempty"`
@@ -87,12 +87,12 @@ type CoreVersionComponent struct {
 	LatestCommitAt     time.Time `json:"latestCommitAt,omitempty"`
 	LatestCommitSigned bool      `json:"latestCommitSigned"`
 	ReleaseURL         string    `json:"releaseUrl,omitempty"`
-	PublishedAt     time.Time `json:"publishedAt,omitempty"`
-	UpdateAvailable bool      `json:"updateAvailable"`
-	CanUpdate       bool      `json:"canUpdate"`
-	Integrity       string    `json:"integrity,omitempty"`
-	AssetSHA256     string    `json:"assetSha256,omitempty"`
-	UpdateReason    string    `json:"updateReason,omitempty"`
+	PublishedAt        time.Time `json:"publishedAt,omitempty"`
+	UpdateAvailable    bool      `json:"updateAvailable"`
+	CanUpdate          bool      `json:"canUpdate"`
+	Integrity          string    `json:"integrity,omitempty"`
+	AssetSHA256        string    `json:"assetSha256,omitempty"`
+	UpdateReason       string    `json:"updateReason,omitempty"`
 }
 
 type CoreVersionBackupInfo struct {
@@ -128,7 +128,7 @@ type coreVersionAsset struct {
 type coreVersionBranchResponse struct {
 	Name   string `json:"name"`
 	Commit struct {
-		SHA string `json:"sha"`
+		SHA    string `json:"sha"`
 		Commit struct {
 			Committer struct {
 				Date time.Time `json:"date"`

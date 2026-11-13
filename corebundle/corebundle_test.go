@@ -116,7 +116,6 @@ func TestExtractedGeofilesAreDatedByTheirData(t *testing.T) {
 	}
 }
 
-
 // TestXraySourceCommit reads the build-time Git pin embedded beside Xray.
 // A plain source checkout may not have run build/core/build.sh, so an empty
 // value is a valid no-provenance state.

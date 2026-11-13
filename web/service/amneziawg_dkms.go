@@ -360,6 +360,7 @@ const awgSupportedDistros = "Debian 12/13 or Ubuntu 24.04/26.04 with a tested Li
 // kernels are still open upstream:
 //   - PR #269: setup_udp_tunnel_sock signature change on Linux 7.0.
 //   - PR #184: IPv6 route lookup API change on Linux 7.1.
+//
 // PR #176 fixed an earlier ipv6_stub issue but does not cover these later ABI
 // changes. Until the fixes are merged and the module is rebuilt and tested,
 // refuse AmneziaWG on Linux 7.0+. Other VPN protocols are not affected.
@@ -420,10 +421,8 @@ func parseKernelVersion(r string) (int, int, bool) {
 		return 0, 0, false
 	}
 	return maj, min, true
-}// kernelVersionAtLeast is deliberately independent of distro names: distribution
+} // kernelVersionAtLeast is deliberately independent of distro names: distribution
 // kernels backport APIs, so the ABI floor is a more useful conservative guard.
 func kernelVersionAtLeast(major, minor, requiredMajor, requiredMinor int) bool {
 	return major > requiredMajor || (major == requiredMajor && minor >= requiredMinor)
 }
-
-
