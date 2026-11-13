@@ -89,7 +89,7 @@
                         <a-tag color="orange" v-if="component.updateAvailable && !component.canUpdate">
                           {{ i18n "pages.core.versionManagerBuildRequired" }}
                         </a-tag>
-                        <a-tag color="green" v-if="component.updateAvailable && component.canUpdate">
+                        <a-tag color="green" v-else-if="component.updateAvailable && component.canUpdate">
                           {{ i18n "pages.core.versionManagerAvailable" }}
                         </a-tag>
                         <a-tag color="blue" v-else-if="!component.canUpdate && !component.updateAvailable">
