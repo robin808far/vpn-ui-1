@@ -11,13 +11,13 @@ import (
 	"testing"
 )
 
-func testSHA256(data []byte) string {
+func coreVersionTestSHA256(data []byte) string {
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
 }
 
 func TestParseCoreVersionDigest(t *testing.T) {
-	want := testSHA256([]byte("release"))
+	want := coreVersionTestSHA256([]byte("release"))
 	got, err := parseCoreVersionDigest("sha256:" + want)
 	if err != nil || got != want {
 		t.Fatalf("parseCoreVersionDigest() = %q, %v; want %q", got, err, want)
@@ -50,17 +50,17 @@ func TestValidateAWGToolsAssetURL(t *testing.T) {
 
 func TestVerifySidecar(t *testing.T) {
 	data := []byte("known release file")
-	sidecar := []byte(testSHA256(data) + "\n")
+	sidecar := []byte(coreVersionTestSHA256(data) + "\n")
 	if err := verifySidecar(data, sidecar); err != nil {
 		t.Fatalf("valid checksum rejected: %v", err)
 	}
-	if err := verifySidecar(data, []byte(testSHA256([]byte("other")))); err == nil {
+	if err := verifySidecar(data, []byte(coreVersionTestSHA256([]byte("other")))); err == nil {
 		t.Fatal("mismatched checksum accepted")
 	}
 	if err := verifySidecar(data, []byte("not-a-checksum")); err == nil {
 		t.Fatal("invalid sidecar accepted")
 	}
-	if err := verifySidecar(data, []byte(testSHA256(data)+" extra")); err == nil {
+	if err := verifySidecar(data, []byte(coreVersionTestSHA256(data)+" extra")); err == nil {
 		t.Fatal("ambiguous sidecar accepted")
 	}
 }
@@ -72,8 +72,8 @@ func makeAWGTestArchive(t *testing.T, mutate func(*zip.Writer) error) []byte {
 	files := map[string][]byte{
 		"awg": awg,
 		"awg-quick": quick,
-		"awg.sha256": []byte(testSHA256(awg) + "\n"),
-		"awg-quick.sha256": []byte(testSHA256(quick) + "\n"),
+		"awg.sha256": []byte(coreVersionTestSHA256(awg) + "\n"),
+		"awg-quick.sha256": []byte(coreVersionTestSHA256(quick) + "\n"),
 	}
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
@@ -140,8 +140,8 @@ func TestExtractAWGToolsPayloadRejectsChecksumMismatch(t *testing.T) {
 	files := map[string][]byte{
 		"awg": []byte("payload"),
 		"awg-quick": []byte("#!/bin/bash\n"),
-		"awg.sha256": []byte(fmt.Sprintf("%s\n", testSHA256([]byte("wrong")))),
-		"awg-quick.sha256": []byte(testSHA256([]byte("#!/bin/bash\n")) + "\n"),
+		"awg.sha256": []byte(fmt.Sprintf("%s\n", coreVersionTestSHA256([]byte("wrong")))),
+		"awg-quick.sha256": []byte(coreVersionTestSHA256([]byte("#!/bin/bash\n")) + "\n"),
 	}
 	for name, data := range files {
 		w, err := zw.Create(coreVersionAWGToolsArchiveDir + "/" + name)
